@@ -47,3 +47,36 @@ def extract_data_from_url(url: str):
         article_content = article_content.replace(code, "")
 
     return title, article_content, images, code_blocks
+
+
+def divide_text_into_chunks(text, limit=1000):
+    """
+    Divide the given text into chunks of approximately 'limit' characters.
+
+    Args:
+        text (str): The text to divide into chunks.
+        limit (int): The maximum number of characters per chunk.
+
+    Returns:
+        list: A list of text chunks.
+    """
+
+    def chunker(contexts: list):
+        chunks = []
+        all_contexts = ' '.join(contexts).split('.')
+        chunk = []
+        for context in all_contexts:
+            chunk.append(context)
+            if len(chunk) >= 3 and len('.'.join(chunk)) > limit:
+                # surpassed limit so add to chunks and reset
+                chunks.append('.'.join(chunk).strip() + '.')
+                # add some overlap between passages
+                chunk = chunk[-2:]
+        # if we finish and still have a chunk, add it
+        if chunk:
+            chunks.append('.'.join(chunk).strip() + '.')
+        return chunks
+
+    # Split text into a list based on paragraphs or new lines
+    contexts = text.split('\n\n')  # Assuming paragraphs are separated by double new lines
+    return chunker(contexts)
