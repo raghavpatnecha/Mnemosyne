@@ -1,6 +1,9 @@
 import pymongo
-from service.utils import *
+from service.mongo_utils import *
 from model.model_utls import *
+import logging
+
+logger = logging.getLogger()
 
 class MongoService:
     def __init__(self, config):
@@ -10,9 +13,9 @@ class MongoService:
         self.dense_model = instantiate_model()
 
     def insert_data(self, url: str) -> None:
-        # title, article_content, images, code_blocks = extract_data_from_url(url)
         md_dict = extract_data_from_firecrawl(url)
         chunks = divide_text_into_chunks(md_dict['content'])
+        logger.info(f"Inserting for url: {url}, Number of chunks: {len(chunk)}")
         for i in range(len(chunks)):
             chunk = chunks[i]
             embeddings = self.dense_model.encode(chunk)
@@ -20,11 +23,13 @@ class MongoService:
             md_dict['chunk_embedding'] = [embedding.tolist() for embedding in embeddings]
             md_dict['_id'] = f"{url}-{i}"  # Add the unique identifier
             self.collection.insert_one(md_dict)
+            if i % 5 == 0:
+                logger.info(f"inserting chunk index: {i} of {len(chunk)}")
 
     def retrieve_data(self, query: str) -> str:
         query_embedding = self.dense_model.encode(query).tolist()
         val = self.vector_search(index_name="vector_index", attr_name="chunk_embedding", embedding_vector=query_embedding)
-        print(val)
+        return val
 
     def vector_search(self, index_name, attr_name, embedding_vector, limit=5):
        results = self.collection.aggregate([
