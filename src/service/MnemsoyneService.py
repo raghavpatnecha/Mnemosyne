@@ -1,5 +1,5 @@
-from LLMService import LLMService
-from MongoService import MongoService
+from service.LLMService import LLMService
+from service.MongoService import MongoService
 from config import Config
 
 class MnemsoyneService:
