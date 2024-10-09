@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Search Results</title>
+    <style>
+        #search-box {
+            margin-bottom: 20px;
+        }
+        #search-input {
+            width: 70%;
+            padding: 10px;
+        }
+        #search-button {
+            padding: 10px 20px;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        h1, h2 {
+            color: #333;
+        }
+        #answer-container {
+            background-color: #f8f8f8;
+            border-left: 4px solid #007bff;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        #images-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .image-wrapper {
+            position: relative;
+            width: calc(50% - 5px);
+        }
+        .image-wrapper img {
+            width: 100%;
+            height: 200px;
+            object-fit: cover;
+            border-radius: 4px;
+        }
+        .image-description {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background-color: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 5px;
+            font-size: 0.8em;
+        }
+        #code-container {
+            background-color: #282c34;
+            color: #abb2bf;
+            padding: 15px;
+            border-radius: 4px;
+            overflow-x: auto;
+            margin-bottom: 20px;
+        }
+        #sources-container .source {
+            margin-bottom: 10px;
+        }
+        #sources-container a {
+            color: #007bff;
+            text-decoration: none;
+        }
+        #sources-container a:hover {
+            text-decoration: underline;
+        }
+        #follow-up-container p {
+            background-color: #e9ecef;
+            padding: 10px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        #follow-up-container p:hover {
+            background-color: #dee2e6;
+        }
+        #confidence-container {
+            font-style: italic;
+            color: #6c757d;
+        }
+    </style>
+</head>
+<body>
+    <div id="search-box">
+        <input type="text" id="search-input" placeholder="Enter your search query">
+        <button id="search-button" onclick="performSearch()">Search</button>
+    </div>
+
+   <h1 id="query"></h1>
+    <div id="answer-container"></div>
+    <h2>Images</h2>
+    <div id="images-container"></div>
+    <h2>Code Examples</h2>
+    <div id="code-container"></div>
+    <h2>Sources</h2>
+    <div id="sources-container"></div>
+    <h2>Follow-up Questions</h2>
+    <div id="follow-up-container"></div>
+    <div id="confidence-container"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script>
+        function encodeQuery(query) {
+            return query.replace(/\s+/g, '-').toLowerCase();
+        }
+
+        function generateUniqueId() {
+            return Math.random().toString(36).substring(2, 15);
+        }
+
+        function performSearch() {
+            const query = document.getElementById('search-input').value;
+            const encodedQuery = encodeQuery(query);
+            const uniqueId = generateUniqueId();
+            const searchUrl = `/search_mock/${encodedQuery}-${uniqueId}`;
+            window.history.pushState({}, '', searchUrl);
+            fetchResults(encodedQuery);
+        }
+
+        function fetchResults(encodedQuery) {
+            fetch(`/search_mock/${encodedQuery}`)
+                .then(response => response.json())
+                .then(data => {
+                    displayResults(data);  // Only call displayResults when data is available
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    document.getElementById('answer-container').textContent = 'An error occurred while fetching results.';
+                });
+        }
+
+        function setupMarked() {
+            marked.use({
+                renderer: {
+                    code(code, language) {
+                        return `<div class="code-preview">
+                                    <pre><code class="${language}">${code}</code></pre>
+                                </div>`;
+                    }
+                }
+            });
+        }
+       function parseMarkdown(text) {
+            try {
+                if (typeof marked !== 'undefined' && typeof marked.parse === 'function') {
+                    return marked.parse(text, {
+                        gfm: true, // Enable GitHub Flavored Markdown
+                        breaks: true // Allow line breaks in paragraphs
+                    });
+                } else {
+                    console.warn('Marked library not loaded correctly. Displaying raw text.');
+                    return text.replace(/\n/g, '<br>');
+                }
+            } catch (error) {
+                console.error('Error parsing markdown:', error);
+                return text.replace(/\n/g, '<br>');
+            }
+        }
+
+
+        function displayResults(data) {
+            if (!data) {
+                console.error('No data to display.');
+                return;
+            }
+
+            // Display query
+            document.getElementById('query').textContent = data.query || 'No query provided';
+
+            // Display answer
+            document.getElementById('answer-container').innerHTML = parseMarkdown(data.answer || 'No answer available');
+
+            // Display images
+            const imagesContainer = document.getElementById('images-container');
+            imagesContainer.innerHTML = data.images && data.images.length > 0 ? data.images.map(img => `
+                <div class="image-wrapper">
+                    <img src="${img.url}" alt="${img.description}">
+                    <div class="image-description">${img.description}</div>
+                </div>
+            `).join('') : '<p>No images found</p>';
+
+            // Display code blocks
+            const codeContainer = document.getElementById('code-container');
+            codeContainer.innerHTML = parseMarkdown(data.code_blocks || 'No code available');
+
+            // Display sources
+            const sourcesContainer = document.getElementById('sources-container');
+            sourcesContainer.innerHTML = data.sources && data.sources.length > 0 ? data.sources.map(source => `
+                <div class="source">
+                    <h3>${source.title}</h3>
+                    <a href="${source.url}" target="_blank">${source.url}</a>
+                    <p>${source.content}</p>
+                </div>
+            `).join('') : '<p>No sources found</p>';
+
+            // Display follow-up questions
+            const followUpContainer = document.getElementById('follow-up-container');
+            followUpContainer.innerHTML = data.follow_up && data.follow_up.length > 0 ? data.follow_up.map(question => `
+                <p>${question}</p>
+            `).join('') : '<p>No follow-up questions available</p>';
+
+            // Display confidence score
+            const confidenceContainer = document.getElementById('confidence-container');
+            confidenceContainer.textContent = data.confidence_score !== undefined ?
+                `Confidence Score: ${data.confidence_score.toFixed(2)}` : '';
+        }
+
+        // Check if we're loading a search result page
+        const path = window.location.pathname;
+        const match = path.match(/^\/search\/(.+)-[a-z0-9]+$/);
+        if (match) {
+            const encodedQuery = match[1];
+            document.getElementById('search-input').value = encodedQuery.replace(/-/g, ' ');
+            fetchResults(encodedQuery);
+        }
+    </script>
+</body>
+</html>

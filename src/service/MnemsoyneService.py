@@ -1,3 +1,7 @@
+import sys
+from pathlib import Path
+PROJECT_ROOT = Path(__file__).absolute().parents[1].absolute()
+sys.path.insert(0, str(PROJECT_ROOT))
 from service.LLMService import LLMService
 from service.MongoService import MongoService
 from config import Config

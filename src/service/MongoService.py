@@ -49,6 +49,10 @@ class MongoService:
                    '_id' : 1,
                    'title' : 1,
                    "chunk":1,
+                   "images":1,
+                   "links":1,
+                   "sourceURL":1,
+                   "code_blocks":1,
                    "search_score": { "$meta": "vectorSearchScore" }
            }
            }
