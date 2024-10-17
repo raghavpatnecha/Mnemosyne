@@ -1,0 +1,164 @@
+*,
+*::after,
+*::before {
+	box-sizing: border-box;
+}
+
+body {
+	 margin: 0;
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+}
+
+.main-wrap {
+    position: relative;
+     display: flex;
+     flex-direction: column;
+     align-items: center;
+     width: 100%;
+     height: 100vh;
+     background-color: white;
+     background-image: url(../img/bg.svg);
+     background-repeat: no-repeat;
+     background-position: 50% 10em;
+     background-size: 75% auto;
+     background-image: url(../img/bg_12.svg);
+     transition: background-color 0.5s ease, background-image 0.5s ease;
+}
+
+
+
+.main-wrap-post-search{
+position: relative;
+background-color: #fff;
+display: flex;
+     flex-direction: column;
+     align-items: center;
+     width: 100%;
+     height: 100vh;
+}
+
+/* Buttons */
+
+.btn {
+	margin: 0;
+	padding: 0;
+	cursor: pointer;
+	border: none;
+	background: none;
+}
+
+.btn:focus {
+	outline: none;
+}
+
+.btn--search {
+	font-size: 1.5em;
+}
+
+.btn--hidden {
+	pointer-events: none;
+	opacity: 0;
+}
+
+
+/* Reset Search Input */
+
+.search__input {
+	border: 0;
+	background: transparent;
+	border-radius: 0;
+	-webkit-appearance: none;
+}
+
+.search__input:focus {
+	outline: none;
+}
+
+
+/* Links */
+
+
+
+.hidden {
+	position: absolute;
+	overflow: hidden;
+	width: 0;
+	height: 0;
+	pointer-events: none;
+}
+
+
+/* Icons */
+
+.icon {
+	display: block;
+	width: 1.5em;
+	height: 1.5em;
+	margin: 0 auto;
+	fill: currentColor;
+}
+
+#btn-search-close{
+display:none;
+}
+
+
+/* Header */
+
+.codrops-header {
+	display: flex;
+	flex-direction: row;
+	flex-wrap: wrap;
+	align-items: center;
+	width: 100%;
+	padding: 2.5em 2.75em 2.5em 1.5em;
+	text-align: left;
+}
+
+.codrops-header__title {
+	margin: 0;
+    padding: 0 0 0 9.75em;
+    font-family: var(--font-family-circular_spotify_text-bold);
+    font-size: var(--font-size-l);
+    font-style: normal;
+    font-weight: 700;
+    color: #2e2c35;
+}
+
+.codrops-header__side,
+.search-wrap {
+	margin: 0 0 0 auto;
+}
+
+
+.codrops-icon {
+	display: inline-block;
+	margin: 0.5em;
+	padding: 0.5em;
+}
+
+
+.demo-10 .btn--search-close {color: #5c32f2;}
+
+@media screen and (max-width: 40em) {
+	.codrops-header {
+		display: block;
+		padding: 4em 1em 0;
+		text-align: center;
+	}
+	.codrops-header__side {
+		margin: 0 auto;
+	}
+	.codrops-links {
+		font-size: 0.85em;
+		margin: 0 auto;
+	}
+	.search-wrap {
+		font-size: 0.85em;
+		position: absolute;
+		top: 2.15em;
+		right: 2em;
+	}
+
+}

@@ -1,4 +1,5 @@
 import json
+import time
 from datetime import datetime
 from langchain.chains.conversation.base import ConversationChain
 from langchain.chains.llm import LLMChain
@@ -6,7 +7,7 @@ from langchain.memory import ConversationBufferMemory
 from langchain_community.callbacks import get_openai_callback
 from langchain_community.chat_models import ChatOllama
 from langchain.prompts import PromptTemplate
-from langchain_core.callbacks import StreamingStdOutCallbackHandler, CallbackManager
+from langchain_core.callbacks import StreamingStdOutCallbackHandler, CallbackManager, BaseCallbackHandler
 from src.service.llm_utils import parse_llm_output,LLMOutput, get_prompt,_get_answer_prompt
 from src.config import Config
 import logging
@@ -17,6 +18,15 @@ logger = logging.getLogger(__name__)
 logging.basicConfig()
 logger.setLevel(logging.INFO)
 
+
+class StreamingCallback(BaseCallbackHandler):
+    def __init__(self):
+        self.text = ""
+
+    def on_llm_new_token(self, token: str, **kwargs) -> None:
+        self.text += token
+        yield f"data: {token}\n\n"
+
 class LLMService:
     def __init__(self, config: Config):
         self.executor = ThreadPoolExecutor(max_workers=5)
@@ -25,10 +35,12 @@ class LLMService:
     @retry(wait=wait_random_exponential(min=0.1, max=0.5), stop=stop_after_attempt(5), reraise=True)
     def query_knowledge(self, retrieved_info: List[Dict], query: str, model_name: str) -> Generator[str, None, None]:
         context = json.dumps(retrieved_info, indent=2)
+        #context = retrieved_info
 
         # First, stream the answer
         answer_stream = self._stream_answer(query, context, model_name)
         # Use a Future to store the streamed answer
+
         streamed_answer_future = Future()
 
         # Yield from _combine_streams, which will set the result of streamed_answer_future
@@ -39,6 +51,7 @@ class LLMService:
         # Yield the full JSON
         yield json.dumps(json_future.result())
 
+
     def _stream_answer(self, query: str, context: str, model_name: str) -> Generator[str, None, None]:
         prompt_template = PromptTemplate(template=_get_answer_prompt(),input_variables=["query", "context"])
         callback_manager = CallbackManager([StreamingStdOutCallbackHandler()])
@@ -46,7 +59,8 @@ class LLMService:
         llm_chain = LLMChain(llm=gpt_model, prompt=prompt_template)
         return llm_chain.stream({"query": query, "context": context})
 
-    def _generate_full_json(self, query: str, context: str, model_name: str, streamed_answer: str) -> dict:
+
+    def _generate_full_json(self, query: str, context: str, model_name: str,streamed_answer: str) -> dict:
         prompt = get_prompt(context, query)
         gpt_model = ChatOllama(model=model_name, temperature=self.config.LLM.TEMPERATURE,
                                request_timeout=self.config.LLM.OPENAI_TIMEOUT)
@@ -82,7 +96,6 @@ class LLMService:
 
     def _combine_streams(self, answer_stream: Generator[Dict, None, None], streamed_answer_future: Future) -> Generator[
         str, None, None]:
-        yield "STREAM_START\n"
         streamed_answer = ""
         for chunk in answer_stream:
             if 'text' in chunk:
@@ -90,6 +103,5 @@ class LLMService:
                 if content:
                     streamed_answer += content
                     yield content
-        yield "\nSTREAM_END\n"
         streamed_answer_future.set_result(streamed_answer)
 

@@ -1,6 +1,6 @@
 import pymongo
-from service.mongo_utils import *
-from model.model_utls import *
+from src.service.mongo_utils import *
+from src.model.model_utls import *
 import logging
 
 logger = logging.getLogger()

@@ -1,7 +1,7 @@
 class Config:
     class MONGO:
-        USERNAME: str = ""
-        PWRD: str = ""
+        USERNAME: str = "admin"
+        PWRD: str = "admin123"
         DB_NAME: str = "Mnemosyne"
         COLLECTION: str = "medium"
     
