@@ -8,7 +8,7 @@ from langchain_community.callbacks import get_openai_callback
 from langchain_community.chat_models import ChatOllama, ChatOpenAI
 from langchain.prompts import PromptTemplate
 from langchain_core.callbacks import StreamingStdOutCallbackHandler, CallbackManager, BaseCallbackHandler
-from service.llm_utils import *
+from src.service.llm_utils import *
 
 from src.config import Config
 import logging
