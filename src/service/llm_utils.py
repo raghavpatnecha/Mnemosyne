@@ -84,7 +84,7 @@ def get_prompt(context, query) -> str:
     Remember, your entire response must be a valid JSON object. Do not include any text outside of the JSON object.
     """
 
-def _get_answer_prompt() -> str:
+def get_answer_prompt() -> str:
     # return """
     # #YOUR ROLE
     # You are a helpful search assistant named Mnemosyne.
@@ -169,9 +169,29 @@ def _get_answer_prompt() -> str:
     Begin your response now:
     """
 
+def extract_and_parse_json(json_string: str) -> dict:
+    # Find the first '{' and last '}' to extract valid JSON content
+    start_idx = json_string.find('{')
+    end_idx = json_string.rfind('}')
+    
+    if start_idx == -1 or end_idx == -1:
+        print("Error: JSON format not found.")
+        return None
+    
+    # Extract the JSON part from the string
+    json_content = json_string[start_idx:end_idx+1]
+    
+    try:
+        # Parse the extracted JSON content
+        parsed_json = json.loads(json_content)
+        return parsed_json
+    except json.JSONDecodeError as e:
+        print(f"Error parsing JSON: {e}")
+        return None
+
 def parse_llm_output(output: str) -> LLMOutput:
     try:
-        parsed_output = json.loads(output)
+        parsed_output = extract_and_parse_json(output)
 
         # Process sources to ensure they have a score
         processed_sources = []

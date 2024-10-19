@@ -17,8 +17,17 @@ def main():
     ms = MnemsoyneService(Config())
     # mongo_service.insert_data("https://akshaybahadur.medium.com/gymlytics-519caa05f045")
     # mongo_service.retrieve_data("Personalization?")
-    for chunk in ms.retrieve_knowlede("What is gymlytics explain with add code"):
-        print(chunk)
+    knowledge_obj_generator = ms.retrieve_knowlede("Who is Akshay Bahadur, explain his life at CMU")
+    for response in knowledge_obj_generator:
+    # Here `response` will be either partial streamed answers or the final JSON.
+        try:
+            # Try to load the response as JSON (final result)
+            result_json = json.loads(json.dumps(response))
+            print("Final JSON Response:", result_json)
+        except json.JSONDecodeError:
+            # If it's not valid JSON yet, it's part of the streamed answer
+            print("Streamed Answer:", response)
+        # print(chunk)
         # if chunk == "STREAM_START\n":
         #     # Start of answer stream
         #     pass
