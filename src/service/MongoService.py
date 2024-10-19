@@ -1,6 +1,6 @@
 import pymongo
-from service.mongo_utils import *
-from model.model_utls import *
+from src.service.mongo_utils import *
+from src.model.model_utls import *
 import logging
 
 logger = logging.getLogger()
@@ -49,6 +49,10 @@ class MongoService:
                    '_id' : 1,
                    'title' : 1,
                    "chunk":1,
+                   "images":1,
+                   "links":1,
+                   "sourceURL":1,
+                   "code_blocks":1,
                    "search_score": { "$meta": "vectorSearchScore" }
            }
            }

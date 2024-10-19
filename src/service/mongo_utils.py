@@ -2,7 +2,7 @@ import re
 import requests
 from bs4 import BeautifulSoup
 from firecrawl import FirecrawlApp
-from config import Config
+from src.config import Config
 import re
 
 firecrawl_app = FirecrawlApp(Config.FIRECRAWL.API_KEY)

@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en" class="no-js">
+   <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <meta http-equiv="X-UA-Compatible" content="IE=edge">
+      <meta name="description" content="Mnemosyne is an intelligent conversational search agent for Medium articles, named after the Greek goddess of memory." />
+      <meta name="keywords" content="llm, search, medium, articles, javascript, ai, perplexity" />
+      <meta name="author" content="Mnemosyne" />
+      <title>Mnemosyne - Your Knowledge, Personalized</title>
+      <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='img/mnemosyne.ico') }}">
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.5.1/highlight.min.js"></script>
+      <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/sunburst.min.css"/>
+      <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/search_helper.css') }}" />
+      <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/search_style.css') }}" />
+      <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/style.css') }}">
+      <!--[if IE]>
+      <script src="http://html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+      <![endif]--><script>document.documentElement.className = 'js';</script>
+      <style>
+      </style>
+   </head>
+   <body class="demo-10">
+      <svg class="hidden">
+         <defs>
+            <symbol id="icon-arrow" viewBox="0 0 24 24">
+               <title>arrow</title>
+               <polygon points="6.3,12.8 20.9,12.8 20.9,11.2 6.3,11.2 10.2,7.2 9,6 3.1,12 9,18 10.2,16.8 "/>
+            </symbol>
+            <symbol id="icon-drop" viewBox="0 0 24 24">
+               <title>drop</title>
+               <path d="M12,21c-3.6,0-6.6-3-6.6-6.6C5.4,11,10.8,4,11.4,3.2C11.6,3.1,11.8,3,12,3s0.4,0.1,0.6,0.3c0.6,0.8,6.1,7.8,6.1,11.2C18.6,18.1,15.6,21,12,21zM12,4.8c-1.8,2.4-5.2,7.4-5.2,9.6c0,2.9,2.3,5.2,5.2,5.2s5.2-2.3,5.2-5.2C17.2,12.2,13.8,7.3,12,4.8z"/>
+               <path d="M12,18.2c-0.4,0-0.7-0.3-0.7-0.7s0.3-0.7,0.7-0.7c1.3,0,2.4-1.1,2.4-2.4c0-0.4,0.3-0.7,0.7-0.7c0.4,0,0.7,0.3,0.7,0.7C15.8,16.5,14.1,18.2,12,18.2z"/>
+            </symbol>
+            <symbol id="icon-search" viewBox="0 0 24 24">
+               <title>search</title>
+               <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
+            </symbol>
+            <symbol id="icon-cross" viewBox="0 0 24 24">
+               <title>cross</title>
+               <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+            </symbol>
+            <symbol id="icon-images" viewBox="0 0 24 24">
+               <title>images</title>
+               <rect width="18" height="18" x="3" y="3" rx="2" ry="2"></rect>
+               <circle cx="9" cy="9" r="2"></circle>
+               <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"></path>
+            </symbol>
+            <symbol id="icon-answer" viewBox="0 0 24 24">
+               <title>answer</title>
+               <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"></path>
+               <path d="m9 9.5 2 2 4-4"></path>
+            </symbol>
+            <symbol id="icon-follow-up" viewBox="0 0 24 24">
+               <title>follow-up</title>
+               <path d="m2 9 3-3 3 3"></path>
+               <path d="M13 18H7a2 2 0 0 1-2-2V6"></path>
+               <path d="m22 15-3 3-3-3"></path>
+               <path d="M11 6h6a2 2 0 0 1 2 2v10"></path>
+            </symbol>
+            <symbol id="icon-newspaper" viewBox="0 0 24 24">
+               <title>newspaper</title>
+               <path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"></path>
+               <path d="M18 14h-8"></path>
+               <path d="M15 18h-5"></path>
+               <path d="M10 6h8v4h-8V6Z"></path>
+            </symbol>
+            <symbol id="icon-generate" viewBox="0 0 24 26">
+               <title>generate</title>
+               <path d="M5.16515 2.62145L5.8075 0.999247C5.83876 0.919722 5.9154 0.866699 6.00112 0.866699C6.08683 0.866699 6.16347 0.919722 6.19473 0.999247L6.83708 2.62145L8.44145 3.27094C8.5201 3.30254 8.57254 3.38003 8.57254 3.4667C8.57254 3.55337 8.5201 3.63085 8.44145 3.66246L6.83708 4.31195L6.19473 5.93415C6.16347 6.0147 6.08683 6.0667 6.00112 6.0667C5.9154 6.0667 5.83876 6.0147 5.8075 5.93415L5.16515 4.31195L3.56078 3.66246C3.48112 3.63085 3.42969 3.55337 3.42969 3.4667C3.42969 3.38003 3.48112 3.30254 3.56078 3.27094L5.16515 2.62145Z" />
+               <path d="M11.2362 9.43967C11.5502 9.30067 11.8015 9.05025 11.9405 8.73617L13.5494 5.11725C13.7169 4.74204 14.0887 4.5 14.5 4.5C14.9112 4.5 15.2839 4.74204 15.4506 5.11725L17.0603 8.73617C17.1985 9.05025 17.4497 9.3015 17.7638 9.43967L21.3827 11.0494C21.7579 11.2161 22 11.5887 22 12C22 12.4112 21.7579 12.7831 21.3827 12.9506L17.7638 14.5595C17.4497 14.6985 17.1993 14.9497 17.0603 15.2638L15.4506 18.8827C15.2839 19.2579 14.9112 19.5 14.5 19.5C14.0887 19.5 13.7169 19.2579 13.5494 18.8827L11.9405 15.2638C11.8015 14.9497 11.5502 14.6985 11.2362 14.5595L7.61725 12.9506C7.24204 12.7831 7 12.4112 7 12C7 11.5887 7.24204 11.2161 7.61725 11.0494L11.2362 9.43967Z" />
+               <path d="M4.60728 19.392L5.67703 16.6875C5.72997 16.5541 5.85854 16.4666 6.00056 16.4666C6.14258 16.4666 6.27031 16.5541 6.32325 16.6875L7.39299 19.392L10.0678 20.4736C10.1997 20.5271 10.2863 20.6563 10.2863 20.7999C10.2863 20.9435 10.1997 21.0735 10.0678 21.1271L7.39299 22.2087L6.32325 24.9123C6.27031 25.0457 6.14258 25.1332 6.00056 25.1332C5.85854 25.1332 5.72997 25.0457 5.67703 24.9123L4.60728 22.2087L1.93333 21.1271C1.8014 21.0735 1.71484 20.9435 1.71484 20.7999C1.71484 20.6563 1.8014 20.5271 1.93333 20.4736L4.60728 19.392Z" />
+            </symbol>
+         </defs>
+      </svg>
+      </svg>
+      <div class="page">
+         <div class="page__single page__single--dummy"></div>
+         <div class="page__single page__single--dummy"></div>
+         <div class="page__single page__single--dummy"></div>
+         <div class="page__single page__single--dummy"></div>
+         <main class="main-wrap page__single">
+            <header class="codrops-header">
+               <div class="query-container">
+                  <h1 class="codrops-header__title" id="query"></h1>
+               </div>
+               <div class="search-wrap">
+                  <button id="btn-search" class="btn btn--search">
+                     <svg class="icon icon--search">
+                        <use xlink:href="#icon-search"></use>
+                     </svg>
+                  </button>
+               </div>
+            </header>
+            <div id="content-wrapper">
+               <div id="main-content">
+                  <div class="follow-up-images">
+                     <svg class="lucid-images-svg mr-1.5 text-muted-foreground" style="margin-right: 0.375rem; margin-bottom: 0.175rem; display: inline-block; vertical-align: middle; width: 16px; height: 16px;" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <use xlink:href="#icon-images"></use>
+                     </svg>
+                     <h2 class="lucid-images">Images</h2>
+                  </div>
+                  <div id="images-section">
+                     <button id="more-images" class="more-button" style="display: none;">+</button>
+                     <div id="images-container" class="images-container">
+                        <div class="image-wrapper">
+                           <div class="image-loader"></div>
+                        </div>
+                        <div class="image-wrapper">
+                           <div class="image-loader"></div>
+                        </div>
+                        <div class="image-wrapper">
+                           <div class="image-loader"></div>
+                        </div>
+                     </div>
+                  </div>
+                  <div class="follow-up-answer">
+                     <svg width="16" height="16" class="lucide lucid-images-svg" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <use xlink:href="#icon-answer"></use>
+                     </svg>
+                     <h2 class="lucid-images">Answer</h2>
+                  </div>
+                  <div id="answer-container">
+                     <div class="answer-loader"></div>
+                  </div>
+                  <div class="follow-up-text">
+                     <svg width="16" height="16" class="lucide lucid-images-svg" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <use xlink:href="#icon-follow-up"></use>
+                     </svg>
+                     <h2 class="lucid-images">Follow-up Questions</h2>
+                  </div>
+                  <div id="follow-up-container">
+                     <div class="follow-up-loader"></div>
+                     <div class="follow-up-loader"></div>
+                  </div>
+               </div>
+               <div id="sidebar">
+                  <div class="follow-up-sources">
+                     <svg width="16" height="16" class="lucide lucide-newspaper mr-1.5 text-muted-foreground" style="margin-right: 0.675rem; display: inline-block;" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                     <use xlink:href="#icon-newspaper"></use>
+                     </svg>
+                     <h2 class="lucid">Sources</h2>
+                  </div>
+                  <div id="sources-container">
+                     <div class="source-loader"></div>
+                     <div class="source-loader"></div>
+                  </div>
+               </div>
+            </div>
+         </main>
+         <div class="search">
+            <img class="codrops-icon codrops-icon--prev logo" src="static/img/mn-purple.png" alt="logo">
+            <button id="btn-search-close" class="btn btn--search-close" aria-label="Close search form">
+               <svg class="icon icon--cross">
+                  <use xlink:href="#icon-cross"></use>
+               </svg>
+            </button>
+            <div class="search__form Mnemosyne">
+               <h1>Mnemosyne</h1>
+               <p class="tagline">Conversations that Illuminate: Your Knowledge, Personalized</p>
+            </div>
+            <div id="search-box" class="search__form search-container" id="initial-search">
+               <input type="text" class ="search__input" id="search-input" placeholder="Type here to search knowledge...">
+               <button class="generate-button search-app" id="search-button" onclick="performSearch()">
+                  <svg class="icon">
+                     <use xlink:href="#icon-generate"></use>
+                  </svg>
+                  <span>Search</span>
+               </button>
+            </div>
+            <div class="search__related search__form">
+               <div class="search__suggestion">
+                  <h3>First time here?</h3>
+                  <p>Ask me anything like: "Explain Gymlytics with code examples" or "Prep me for a system design interview"</p>
+               </div>
+            </div>
+            <span class="search__info search__form">Made with ❤️ and 🦙 by Akshay Bahadur and Raghav Patnecha</span>
+         </div>
+         <!-- /search -->
+      </div>
+      <!-- /page -->
+      <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+      <script src="https://unpkg.co/gsap@3/dist/gsap.min.js"></script>
+      <script src="{{ url_for('static', filename='js/search_transform.js') }}"></script>
+      <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+   </body>
+</html>
