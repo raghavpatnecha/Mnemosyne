@@ -5,10 +5,11 @@ from langchain.chains.conversation.base import ConversationChain
 from langchain.chains.llm import LLMChain
 from langchain.memory import ConversationBufferMemory
 from langchain_community.callbacks import get_openai_callback
-from langchain_community.chat_models import ChatOllama
+from langchain_community.chat_models import ChatOllama, ChatOpenAI
 from langchain.prompts import PromptTemplate
 from langchain_core.callbacks import StreamingStdOutCallbackHandler, CallbackManager, BaseCallbackHandler
-from src.service.llm_utils import parse_llm_output,LLMOutput, get_prompt,_get_answer_prompt
+from src.service.llm_utils import *
+
 from src.config import Config
 import logging
 from typing import List, Dict, Generator
@@ -49,21 +50,30 @@ class LLMService:
         json_future = self.executor.submit(self._generate_full_json, query, context, model_name,
                                            streamed_answer_future.result())
         # Yield the full JSON
-        yield json.dumps(json_future.result())
+        # yield json.dumps(json_future.result())
+        yield json_future.result()
 
 
     def _stream_answer(self, query: str, context: str, model_name: str) -> Generator[str, None, None]:
-        prompt_template = PromptTemplate(template=_get_answer_prompt(),input_variables=["query", "context"])
+        prompt_template = PromptTemplate(template=get_answer_prompt(),input_variables=["query", "context"])
         callback_manager = CallbackManager([StreamingStdOutCallbackHandler()])
-        gpt_model = ChatOllama(model=model_name, temperature=self.config.LLM.TEMPERATURE, callbacks=callback_manager)
+        if "gpt" in model_name:
+            gpt_model = ChatOpenAI(model_name=model_name, temperature=Config.LLM.TEMPERATURE, openai_api_key=self.config.OPENAI.API_KEY,
+                               request_timeout=Config.LLM.OPENAI_TIMEOUT)
+        else:
+            gpt_model = ChatOllama(model=model_name, temperature=self.config.LLM.TEMPERATURE, callbacks=callback_manager)
         llm_chain = LLMChain(llm=gpt_model, prompt=prompt_template)
         return llm_chain.stream({"query": query, "context": context})
 
 
     def _generate_full_json(self, query: str, context: str, model_name: str,streamed_answer: str) -> dict:
         prompt = get_prompt(context, query)
-        gpt_model = ChatOllama(model=model_name, temperature=self.config.LLM.TEMPERATURE,
-                               request_timeout=self.config.LLM.OPENAI_TIMEOUT)
+        if "gpt" in model_name:
+            gpt_model = ChatOpenAI(model_name=model_name, temperature=Config.LLM.TEMPERATURE, openai_api_key=self.config.OPENAI.API_KEY,
+                               request_timeout=Config.LLM.OPENAI_TIMEOUT)
+        else:
+            gpt_model = ChatOllama(model=model_name, temperature=self.config.LLM.TEMPERATURE,
+                                request_timeout=self.config.LLM.OPENAI_TIMEOUT)
 
         conversation_buf = ConversationChain(llm=gpt_model, memory=ConversationBufferMemory())
         with get_openai_callback() as cb:

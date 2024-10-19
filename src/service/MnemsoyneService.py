@@ -1,8 +1,8 @@
 from joblib import executor
 
-from src.service.LLMService import LLMService
-from src.service.MongoService import MongoService
-from src.config import Config
+from service.LLMService import LLMService
+from service.MongoService import MongoService
+from config import Config
 
 class MnemsoyneService:
     def __init__(self, config: Config) -> None:
@@ -15,5 +15,5 @@ class MnemsoyneService:
 
     def retrieve_knowlede(self, query: str):
         retrived_info = self.mongo_service.retrieve_data(query)
-        #knowledge_obj = self.llm_service.query_knowledge(retrived_info, query, model_name=Config.LLM.MODEL_NAME)
-        return retrived_info
+        knowledge_obj = self.llm_service.query_knowledge(retrived_info, query, model_name=Config.LLM.MODEL_NAME)
+        return knowledge_obj
