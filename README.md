@@ -1,3 +1,8 @@
+<div align="center">
+
+<p align="center"> <img src="assets/mnemosyne.jpeg" width="1500px"></p>
+
+</div>
 
 [![](https://img.shields.io/github/license/sourcerer-io/hall-of-fame.svg?colorB=ff0000)](https://github.com/raghavpatnecha/Mnemosyne/blob/main/LICENSE)  [![](https://img.shields.io/badge/Raghav-Patnecha-brightgreen.svg?colorB=00ff00)](https://github.com/raghavpatnecha) [![](https://img.shields.io/badge/Akshay-Bahadur-brightgreen.svg?colorB=00ff00)](https://akshaybahadur.com)
 
