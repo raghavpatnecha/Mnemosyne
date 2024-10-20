@@ -45,7 +45,7 @@ For any queries or suggestions, please open an issue on this GitHub repository o
 ## Cite Us :pushpin:
 
 ```
-@article{raghavpatnecha_socratic,
+@article{raghavpatnecha_mnemosyne,
 author = [{Patnecha, Raghav}, {Bahadur, Akshay}],
 journal = {https://github.com/raghavpatnecha/Mnemosyne},
 month = {10},
