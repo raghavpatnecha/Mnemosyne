@@ -13,6 +13,13 @@ Mnemosyne is an intelligent conversational search agent for Medium articles, nam
 
 Mnemosyne leverages Generative AI and other machine learning techniques to provide an intuitive, conversation-based interface for searching and exploring articles. Whether you're looking for specific information or wanting to dive deep into a topic, Mnemosyne acts as your personal search engine, offering relevant content and insights from a vast repository of your articles.
 
+## Features 👨‍🔬
+
+- Semantic Search through saved Medium Articles
+- OpenAI and Ollama integration for QnA
+- Firecrawl integration for crawling articles
+- MongoDB integration for building vector and text data store
+
 ## Getting Started 🦄
 
 ### Installation
