@@ -1,6 +1,7 @@
 import json
 import asyncio
 from datetime import datetime
+from enum import Enum
 from typing import List, Dict, AsyncGenerator, Generator, Any
 from langchain.callbacks import AsyncIteratorCallbackHandler
 from langchain.chains import ConversationChain
@@ -68,22 +69,19 @@ class OpenAIStrategy(LLMStrategy):
         in_code_block = False
 
         async for token in callback.aiter():
-            if not token:
-                continue
+            if token is None:
+                break
 
-            async for output, new_buffer, new_in_code_block in process_buffer_line_by_line(token, buffer,
-                                                                                           in_code_block):
-                if output:
-                    yield output
-                buffer = new_buffer
-                in_code_block = new_in_code_block
+            buffer += token
+            output, buffer, in_code_block = await process_buffer_line_by_line(buffer, in_code_block)
+            if output:
+                yield output
 
-        # Handle any remaining content
-        if buffer.strip():
-            if in_code_block:
-                yield buffer + "\n```\n"
-            else:
-                yield buffer.strip() + "\n"
+        # Handle any remaining content in the buffer
+        while buffer:
+            output, buffer, in_code_block = await process_buffer_line_by_line(buffer, in_code_block, final=True)
+            if output:
+                yield output
 
         try:
             await task
@@ -226,14 +224,21 @@ class LLMStrategyFactory:
             return OpenAIStrategy(config)
         else:
             return OllamaStrategy(config)
-
+class LLMMode(Enum):
+    SYNC = "sync"
+    ASYNC = "async"
 
 class LLMService:
     def __init__(self, config: Config):
         self.config = config
 
-    async def query_knowledge(self, retrieved_info: List[Dict], query: str, model_name: str) -> AsyncGenerator[
-        str, None]:
+    async def query_knowledge(
+        self,
+        retrieved_info: List[Dict],
+        query: str,
+        model_name: str,
+        mode: LLMMode
+    ) -> AsyncGenerator[str, None]:
         context = json.dumps(retrieved_info, indent=2)
         strategy = LLMStrategyFactory.create_strategy(model_name, self.config)
 
@@ -242,12 +247,12 @@ class LLMService:
             input_variables=["query", "context"]
         )
 
-        # Stream the answer
-        #async for chunk in strategy.stream_answer_async(query, context, model_name, prompt_template):
-        async for chunk in strategy._stream_answer_sync(query, context, model_name, prompt_template):
-            print(chunk)
-            yield chunk
+        if mode == LLMMode.SYNC:
+            async for chunk in strategy._stream_answer_sync(query, context, model_name, prompt_template):
+                yield chunk
+        else:
+            async for chunk in strategy.stream_answer_async(query, context, model_name, prompt_template):
+                yield chunk
 
-        # Generate and yield the full JSON
         full_json = await strategy.generate_json(query, model_name, get_prompt(context, query))
         yield json.dumps(full_json)

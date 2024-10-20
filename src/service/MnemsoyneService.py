@@ -1,6 +1,6 @@
 from joblib import executor
 
-from src.service.LLMService import LLMService
+from src.service.LLMService import LLMService,LLMMode
 from src.service.MongoService import MongoService
 from src.config import Config
 
@@ -13,7 +13,8 @@ class MnemsoyneService:
         self.mongo_service.insert_data(url)
         #TODO add more logic here
 
-    def retrieve_knowlede(self, query: str):
+    def retrieve_knowlede(self, query: str, llm_mode: LLMMode):
         retrived_info = self.mongo_service.retrieve_data(query)
-        knowledge_obj = self.llm_service.query_knowledge(retrived_info, query, model_name=Config.LLM.MODEL_NAME)
+        knowledge_obj = self.llm_service.query_knowledge(retrived_info, query, model_name=Config.LLM.MODEL_NAME,
+                                                         mode=llm_mode)
         return knowledge_obj
