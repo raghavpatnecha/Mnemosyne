@@ -14,6 +14,9 @@
       <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/search_helper.css') }}" />
       <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/search_style.css') }}" />
       <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/style.css') }}">
+     <!-- <link rel="stylesheet" type="text/css" href="../static/css/search_helper.css" />
+      <link rel="stylesheet" type="text/css" href="../static/css/search_style.css" />
+      <link rel="stylesheet" type="text/css" href="../static/css/style.css"> -->
       <!--[if IE]>
       <script src="http://html5shiv.googlecode.com/svn/trunk/html5.js"></script>
       <![endif]--><script>document.documentElement.className = 'js';</script>
@@ -149,7 +152,7 @@
             </div>
          </main>
          <div class="search">
-            <img class="codrops-icon codrops-icon--prev logo" src="static/img/mn-purple.png" alt="logo">
+            <img class="codrops-icon codrops-icon--prev logo" src="../static/img/mn-purple.png" alt="logo">
             <button id="btn-search-close" class="btn btn--search-close" aria-label="Close search form">
                <svg class="icon icon--cross">
                   <use xlink:href="#icon-cross"></use>
@@ -183,5 +186,7 @@
       <script src="https://unpkg.co/gsap@3/dist/gsap.min.js"></script>
       <script src="{{ url_for('static', filename='js/search_transform.js') }}"></script>
       <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+   <!--<script src="../static/js/search_transform.js"></script>
+      <script src="../static/js/script.js"></script>-->
    </body>
 </html>

@@ -1,8 +1,8 @@
 from joblib import executor
 
-from service.LLMService import LLMService
-from service.MongoService import MongoService
-from config import Config
+from src.service.LLMService import LLMService
+from src.service.MongoService import MongoService
+from src.config import Config
 
 class MnemsoyneService:
     def __init__(self, config: Config) -> None:

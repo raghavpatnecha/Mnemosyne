@@ -15,7 +15,7 @@ class MongoService:
     def insert_data(self, url: str) -> None:
         md_dict = extract_data_from_firecrawl(url)
         chunks = divide_text_into_chunks(md_dict['content'])
-        logger.info(f"Inserting for url: {url}, Number of chunks: {len(chunk)}")
+        logger.info(f"Inserting for url: {url}, Number of chunks: {len(chunks)}")
         for i in range(len(chunks)):
             chunk = chunks[i]
             embeddings = self.dense_model.encode(chunk)

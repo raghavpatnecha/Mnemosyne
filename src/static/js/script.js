@@ -1,6 +1,7 @@
 // Constants and utility functions
 const CONSTANTS = {
-    APP_ID: "change_with_your_opengraph_key" // paste your opengraph.io key here
+    APP_ID: "change_with_your_opengraph_key", // paste your opengraph.io key here optional
+    API_ID: "http://127.0.0.1:5000/mnemosyne/api/v1/search"
 };
 const encodeQuery = query => query.replace(/\s+/g, '-').toLowerCase();
 const generateUniqueId = () => Math.random().toString(36).substring(2, 15);
@@ -23,8 +24,8 @@ function performSearch(query, isFollowUp = false) {
 
     const encodedQuery = encodeQuery(query);
     const uniqueId = generateUniqueId();
-    const searchUrl = `/search/${encodedQuery}-${uniqueId}`;
-    if (!isFollowUp) {
+    const searchUrl = `${CONSTANTS.API_ID}/${encodedQuery}-${uniqueId}`;
+    if (!isFollowUp && window.location.protocol !== 'file:') {
         window.history.pushState({}, '', searchUrl);
     }
     streamResults(searchUrl, isFollowUp);
