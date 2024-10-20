@@ -54,5 +54,5 @@ year = {2024}
 }
 ```
 
-###### Made with ❤️ and 🦙 by Akshay Bahadur
+###### Made with ❤️ and 🦙 by Akshay Bahadur and Raghav Patnecha
 ---
