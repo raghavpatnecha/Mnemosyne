@@ -25,14 +25,59 @@ Mnemosyne leverages Generative AI and other machine learning techniques to provi
 ### Installation
 
 1. Clone the repository:
-   ```
-   git clone https://github.com/yourusername/mnemosyne.git
-   ```
-2. Code Requirements 
-You can install Conda for python which resolves all the dependencies for machine learning.
-   ```
-   pip install -r requirements.txt
-   ```
+    ```bash
+    git clone https://github.com/yourusername/mnemosyne.git
+    cd mnemosyne
+    ```
+
+2. Install dependencies:  
+   You can install Conda for Python to resolve machine learning dependencies.
+    ```bash
+    pip install -r requirements.txt
+    ```
+
+---
+
+### Configuration
+
+The main configuration for the project is done in the `src/config.py` file. Here's how you can configure it:
+
+- **MongoDB Settings**:  
+  Set up your MongoDB connection string and database name.
+  
+- **OpenAI/Ollama Settings**:  
+  Provide your API keys for OpenAI and change the paramenters below based on your needs:
+    ```
+    class OPENAI:
+        API_KEY: str = ""
+
+    class LLM:
+        MODEL_NAME: str = "gpt-4o-mini" #mistral,llama3.2
+        TOKEN_LIMIT: int = 125000
+        TEMPERATURE: float = 0.1
+        OPENAI_TIMEOUT: int = 20 ```
+  
+- **Firecrawl Settings**:  
+  Configure how often the system should crawl Medium for new articles.
+
+---
+
+### Usage
+
+#### Running the Application
+
+You can run the application in **Safe Mode** or **Unsafe Mode** . Safe Mode ensures strict, reliable operations, while Unsafe Mode offers faster processing but with some risks.
+
+
+       python src/api/search.py
+ 
+
+#### Code Overview
+   - **config.py**: Configuration file containing settings for MongoDB, API keys, and other integrations.
+   - **search.py**: Contains the code for starting Flask server.
+   - **LLMService.py**: Provides the QnA service, contains code for text stream generation.
+   - **MnemsoyneService.py**: Manages the overall Mnemosyne service, coordinating between search.py and llmservice.py.
+
 
 ## License 🚔
 
