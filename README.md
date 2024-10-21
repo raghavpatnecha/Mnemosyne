@@ -1,6 +1,6 @@
 <div align="center">
 
-<p align="center"> <img src="assets/mnemosyne.jpeg" width="1500px"></p>
+<p align="center"> <img src="assets/mnemosyne_mini.png" width="1500px"></p>
 
 </div>
 
