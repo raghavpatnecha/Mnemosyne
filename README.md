@@ -29,7 +29,7 @@ Mnemosyne leverages Generative AI and other machine learning techniques to provi
 
 1. Clone the repository:
     ```bash
-    git clone https://github.com/yourusername/mnemosyne.git
+    git clone https://github.com/raghavpatnecha/mnemosyne.git
     cd mnemosyne
     ```
 
