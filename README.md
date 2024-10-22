@@ -16,9 +16,12 @@ Mnemosyne leverages Generative AI and other machine learning techniques to provi
 ## Features 👨‍🔬
 
 - Semantic Search through saved Medium Articles
-- OpenAI and Ollama integration for QnA
+- OpenAI and Ollama with Langchain integration for QnA
 - Firecrawl integration for crawling articles
 - MongoDB integration for building vector and text data store
+- Dual mode operation with StreamingStdOutCallbackHandler and AsyncIteratorCallbackHandler()
+- FastAPI and Quart support for flexible API deployment
+- Streaming responses with SSE (Server-Sent Events)
 
 ## Getting Started 🦄
 
@@ -68,15 +71,54 @@ The main configuration for the project is done in the `src/config.py` file. Here
 
 You can run the application in **Safe Mode** or **Unsafe Mode** . Safe Mode ensures strict, reliable operations, while Unsafe Mode offers faster processing but with some risks.
 
+**FastAPI Server**
 
-       python src/api/search.py
- 
+     
+         Run the FastAPI server
+         python src/fast_api.py
+       
+     
+**Quart Server**
 
-#### Code Overview
+        Run the Quart server
+        python src/app.py
+
+
+#### API Endpoints
+
+**Search API**:
+
+    GET /mnemosyne/api/v1/search/{query}?mode={sync} #Generates complete answer before streaming
+    GET /mnemosyne/api/v1/search/{query}?mode={async} #Uses AsyncStreamingCallbackHandler , lower Latnecy
+    
+#### Core Components
    - **config.py**: Configuration file containing settings for MongoDB, API keys, and other integrations.
-   - **search.py**: Contains the code for starting Flask server.
-   - **LLMService.py**: Provides the QnA service, contains code for text stream generation.
+   - **app.py/fast_api.py**: app.py/fast_api.py: Web server implementations using Quart and FastAPI respectively
+   - **LLMService.py**: Uses factory and Strategy design patterns to ensure extensibility and maintainability:, contains code for text stream generation using langchain.
    - **MnemsoyneService.py**: Manages the overall Mnemosyne service, coordinating between search.py and llmservice.py.
+   - **script.js** = Uses highlight.js and marked.js to parse repsone on frontend
+
+----
+
+### Project Structure
+
+    mnemosyne/
+    ├── src/
+    │   ├── app.py              # Quart server implementation
+    │   ├── config.py           # Configuration settings
+    │   ├── fast_api.py         # FastAPI server implementation
+    │   ├── api/
+    │   │   └── search.py       # Core search API implementation
+    │   ├── model/
+    │   │   └── model_utils.py  # Utility functions for models
+    │   ├── service/
+    │   │   ├── LLMService.py   # LLM integration service
+    │   │   ├── llm_utils.py    # LLM utility functions
+    │   │   ├── MnemsoyneService.py  # Main service coordination
+    │   │   ├── MongoService.py      # MongoDB service
+    │   │   └── mongo_utils.py       # MongoDB utility functions
+    │   ├── static/             # Static files
+    │   └── templates/          # HTML templates
 
 
 ## License 🚔
