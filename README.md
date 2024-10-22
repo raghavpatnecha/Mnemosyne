@@ -41,7 +41,7 @@ Mnemosyne leverages Generative AI and other machine learning techniques to provi
 
 ---
 
-### Configuration
+### Configuration 🔱
 
 The main configuration for the project is done in the `src/config.py` file. Here's how you can configure it:
 
@@ -65,7 +65,7 @@ The main configuration for the project is done in the `src/config.py` file. Here
 
 ---
 
-### Usage
+### Usage 🗼
 
 #### Running the Application
 
@@ -100,7 +100,7 @@ You can run the application in **Safe Mode** or **Unsafe Mode** . Safe Mode ensu
 
 ----
 
-### Project Structure
+### Project Structure 🗄️
 
     mnemosyne/
     ├── src/
@@ -124,6 +124,9 @@ You can run the application in **Safe Mode** or **Unsafe Mode** . Safe Mode ensu
 ## License 🚔
 
 This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md) file for details.
+
+## Results 📊
+<p align="center"><img src="https://github.com/akshaybahadur21/BLOB/blob/master/mnemosyne.gif" height="450px"></p>
 
 ## Contact 📱
 
