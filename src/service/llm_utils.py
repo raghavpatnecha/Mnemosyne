@@ -163,6 +163,7 @@ def get_answer_prompt_openai() -> str:
     You MUST ADHERE to the following formatting instructions:
     - Use markdown to format code blocks, paragraphs, lists, tables, and quotes whenever possible.
     - Provide code blocks examples if given in the CONTEXT.
+    - If diagram or architecture is asked in QUERY show in markdown either from your knowledge or CONTEXT
     - Use headings level 2 and 3 to separate sections of your response, like "## Header", but NEVER start an answer with a heading or title of any kind.
     - Use single new lines for lists and double new lines for paragraphs.
     - NEVER write URLs or links.

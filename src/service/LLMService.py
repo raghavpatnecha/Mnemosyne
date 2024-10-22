@@ -131,8 +131,9 @@ class OpenAIStrategy(LLMStrategy):
 
 class OllamaStrategy(LLMStrategy):
     async def stream_answer_async(self, query: str, context: str, model_name: str, prompt_template: PromptTemplate) -> \
-    AsyncGenerator[str, None]:
+            AsyncGenerator[str, None]:
         callback_handler = AsyncIteratorCallbackHandler()
+
         gpt_model = ChatOllama(
             model=model_name,
             temperature=self.config.LLM.TEMPERATURE,
@@ -140,29 +141,28 @@ class OllamaStrategy(LLMStrategy):
             callbacks=[callback_handler],
             verbose=True
         )
+
         llm_chain = LLMChain(llm=gpt_model, prompt=prompt_template)
-        task = asyncio.create_task(llm_chain.arun(query=query, context=context))
+
+        task = asyncio.create_task(llm_chain.arun({"query": query, "context": context}))
 
         buffer = ""
         in_code_block = False
 
         async for token in callback_handler.aiter():
-            if not token:
-                continue
+            if token is None:
+                break
 
-            async for output, new_buffer, new_in_code_block in process_buffer_line_by_line(token, buffer,
-                                                                                           in_code_block):
-                if output:
-                    yield output
-                buffer = new_buffer
-                in_code_block = new_in_code_block
+            buffer += token
+            output, buffer, in_code_block = await process_buffer_line_by_line(buffer, in_code_block)
+            if output:
+                yield output
 
-        # Handle any remaining content
-        if buffer.strip():
-            if in_code_block:
-                yield buffer + "\n```\n"
-            else:
-                yield buffer.strip() + "\n"
+        # Handle any remaining content in the buffer
+        while buffer:
+            output, buffer, in_code_block = await process_buffer_line_by_line(buffer, in_code_block, final=True)
+            if output:
+                yield output
 
         try:
             await task
