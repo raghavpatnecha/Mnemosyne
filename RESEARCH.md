@@ -2,6 +2,7 @@
 
 **Date:** 2025-11-14
 **Purpose:** Document reusable patterns from SurfSense for Mnemosyne RAG-as-a-Service platform
+**SurfSense Repository:** Cloned to `/home/user/SurfSense/` for reference
 
 ---
 
