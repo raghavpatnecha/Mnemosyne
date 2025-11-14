@@ -6,6 +6,43 @@ Mnemosyne is an intelligent conversational search agent for Medium articles usin
 
 ---
 
+## 🚀 SuperClaude Framework Integration
+
+**CRITICAL RULE: Use SuperClaude commands when applicable**
+
+Mnemosyne integrates [SuperClaude Framework](https://github.com/SuperClaude-Org/SuperClaude_Framework) - a meta-programming framework with 30+ specialized slash commands for structured development workflows.
+
+**Available Commands:**
+- `/research` - Deep web research with Tavily integration
+- `/brainstorm` - Structured brainstorming sessions
+- `/design` - System design and architecture
+- `/implement` - Code implementation workflows
+- `/test` - Testing strategies and execution
+- `/pm` - Project management and planning
+- `/document` - Documentation generation
+- `/analyze` - Code analysis and review
+- `/troubleshoot` - Debugging workflows
+- `/git` - Git operations and workflows
+- ...and 20+ more (use `/sc` to see all)
+
+**When to Use SuperClaude Commands:**
+1. **Research tasks**: Use `/research` instead of manual web searching
+2. **Planning**: Use `/brainstorm` or `/pm` for feature planning
+3. **Design**: Use `/design` for architecture decisions
+4. **Implementation**: Use `/implement` for structured coding
+5. **Testing**: Use `/test` for test generation and execution
+6. **Documentation**: Use `/document` for auto-documentation
+
+**Installation:**
+```bash
+pipx install superclaude
+superclaude install
+```
+
+**Reference:** https://github.com/SuperClaude-Org/SuperClaude_Framework
+
+---
+
 ## Critical Workflows
 
 ### Before Making ANY Changes
