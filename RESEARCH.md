@@ -7,7 +7,8 @@
 ---
 
 ## Table of Contents
-1. [Project Structure](#project-structure)
+0. [RAG Systems Comparative Analysis](#rag-systems-comparative-analysis)
+1. [SurfSense Deep Dive - Project Structure](#project-structure)
 2. [Database Architecture](#database-architecture)
 3. [API Design Patterns](#api-design-patterns)
 4. [Document Processing Pipeline](#document-processing-pipeline)
@@ -15,6 +16,148 @@
 6. [Celery Task Architecture](#celery-task-architecture)
 7. [Service Layer Patterns](#service-layer-patterns)
 8. [Key Takeaways for Mnemosyne](#key-takeaways-for-mnemosyne)
+
+---
+
+## RAG Systems Comparative Analysis
+
+**Research Scope:** Analysis of 6 leading RAG implementations to inform Mnemosyne's architecture decisions.
+
+### 1. SurfSense (NotebookLM Clone)
+
+**Architecture:**
+- FastAPI + PostgreSQL (pgvector) + Celery + Redis
+- Next.js 15 frontend with Vercel AI SDK
+- LlamaCloud/Unstructured.io/Docling for parsing
+- Hybrid search (semantic + full-text with RRF)
+
+**Strengths:**
+- 50+ file format support (PDF, Office, audio, video)
+- Hierarchical indices (two-tier RAG)
+- Podcast generation (3min in 20sec)
+- Multiple rerankers (Pinecone, Cohere, Flashrank)
+- Chonkie chunking with LateChunker optimization
+
+**Decision:** Deep dive chosen for production-ready patterns (see sections below)
+
+---
+
+### 2. RAG-Anything (Multimodal Specialist)
+
+**Architecture:**
+- Built on top of LightRAG
+- MinerU + Docling for document parsing
+- Concurrent text/multimodal processing pipelines
+- VLM integration for image understanding
+
+**Strengths:**
+- Seamless multimodal handling (text, images, tables, equations)
+- Direct content injection (bypass parsing when needed)
+- Knowledge graph construction with cross-modal relationships
+- Modality-aware retrieval (vector + graph traversal)
+
+**Decision:** Will integrate for multimodal support (see ARCHITECTURE.md)
+
+---
+
+### 3. Pathway (Real-Time Streaming RAG)
+
+**Architecture:**
+- Rust-based differential dataflow engine
+- In-memory real-time vector index
+- 300+ data source connectors (Airbyte)
+- Unified batch-and-streaming architecture
+
+**Strengths:**
+- Live document updates (no batch delays)
+- Incremental computation
+- Native Kafka/PostgreSQL/SharePoint connectors
+- Superior performance vs Flink/Spark/Kafka Streaming
+
+**Decision:** Deferred to Phase 3 (overkill for MVP)
+
+---
+
+### 4. Airweave (Context Retrieval Layer)
+
+**Architecture:**
+- FastAPI + PostgreSQL + Qdrant (vectors)
+- 30+ app integrations (Slack, Notion, GitHub, etc.)
+- MCP (Model Context Protocol) server
+- Multi-tenant with OAuth2
+
+**Strengths:**
+- Production-ready connectors
+- Incremental updates via content hashing
+- Entity extraction & transformation
+- REST API + MCP interfaces
+
+**Decision:** Reference for connector patterns (see ARCHITECTURE.md integrations)
+
+---
+
+### 5. LightRAG (Graph-Enhanced Retrieval)
+
+**Architecture:**
+- Graph-based text indexing
+- Dual-level retrieval (low-level + high-level queries)
+- Knowledge graph with entities/relationships
+- Incremental updates (no full reindexing)
+
+**Strengths:**
+- **99% token reduction** vs GraphRAG (100 vs 600-10K tokens)
+- **Single API call** retrieval (GraphRAG needs multiple)
+- **86.4% better performance** in complex domains
+- Handles both specific ("Who wrote X?") and abstract queries
+- **Scalable** (incremental updates)
+
+**Recent 2025 Features:**
+- RAG-Anything multimodal integration ✓
+- Reranker support ✓
+- RAGAS evaluation framework ✓
+- Langfuse observability ✓
+
+**Decision:** **Core retrieval engine** for Mnemosyne (see PRD.md and API_DESIGN.md)
+
+---
+
+### 6. GraphRAG (Microsoft Research)
+
+**Architecture:**
+- LLM-generated knowledge graph
+- Community detection (Leiden algorithm)
+- Hierarchical community summaries
+- Map-reduce parallel query execution
+
+**Strengths:**
+- Excellent for dataset-wide aggregation queries
+- Structured information retrieval
+- Reveals dataset themes/structure
+- Azure-hosted solution accelerator
+
+**Weaknesses:**
+- **High cost** (600-10K tokens per retrieval)
+- **Multiple API calls** needed
+- Overkill for general Q&A
+
+**Decision:** Not chosen (LightRAG is 99% more cost-efficient)
+
+---
+
+### Architecture Decision Summary
+
+**Chosen Stack:**
+- **Core Engine:** LightRAG (cost-efficient, high performance)
+- **Multimodal:** RAG-Anything integration
+- **Database:** PostgreSQL + pgvector (from SurfSense patterns)
+- **Processing:** Celery + Redis (from SurfSense patterns)
+- **Integrations:** OAuth patterns (from Airweave analysis)
+
+**Rationale:**
+1. LightRAG: 99% token reduction, single API call, proven performance
+2. SurfSense: Production-ready architecture patterns
+3. RAG-Anything: Seamless multimodal support on LightRAG
+4. PostgreSQL: Mature, reliable, proven at scale
 
 ---
 
