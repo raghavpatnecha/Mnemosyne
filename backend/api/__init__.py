@@ -1,4 +1,12 @@
 """
 API Routes and Endpoints
-Will be populated in Steps 5-7
+
+Routers:
+    - auth: Authentication (register, API keys)
+    - collections: Collection CRUD
+    - documents: Document CRUD
 """
+
+from backend.api import auth, collections, documents
+
+__all__ = ["auth", "collections", "documents"]
