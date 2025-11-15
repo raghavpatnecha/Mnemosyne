@@ -71,7 +71,7 @@ class Document(Base):
 
     # Processing status
     status = Column(String(50), default="pending", index=True)  # pending, processing, completed, failed
-    metadata = Column(JSON, default=dict)
+    metadata_ = Column("metadata", JSON, default=dict)  # metadata is reserved by SQLAlchemy
     processing_info = Column(JSON, default=dict)
 
     # Processing results (Week 2+)

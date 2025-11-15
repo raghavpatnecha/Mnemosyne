@@ -163,3 +163,4 @@ cython_debug/
 # Reference repositories (clone manually)
 references/surfsense/
 references/rag-anything/
+models/

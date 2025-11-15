@@ -42,7 +42,7 @@ class VectorSearchService:
             DocumentChunk.id,
             DocumentChunk.content,
             DocumentChunk.chunk_index,
-            DocumentChunk.metadata,
+            DocumentChunk.metadata_,
             DocumentChunk.chunk_metadata,
             DocumentChunk.document_id,
             DocumentChunk.collection_id,
@@ -74,7 +74,7 @@ class VectorSearchService:
                 'content': result.content,
                 'chunk_index': result.chunk_index,
                 'score': 1 - result.distance,
-                'metadata': result.metadata or {},
+                'metadata': result.metadata_ or {},
                 'chunk_metadata': result.chunk_metadata or {},
                 'document': {
                     'id': str(result.document_id),
@@ -141,7 +141,7 @@ class VectorSearchService:
             DocumentChunk.id,
             DocumentChunk.content,
             DocumentChunk.chunk_index,
-            DocumentChunk.metadata,
+            DocumentChunk.metadata_,
             DocumentChunk.chunk_metadata,
             DocumentChunk.document_id,
             DocumentChunk.collection_id,
@@ -178,7 +178,7 @@ class VectorSearchService:
                 'content': result.content,
                 'chunk_index': result.chunk_index,
                 'score': float(result.rank),
-                'metadata': result.metadata or {},
+                'metadata': result.metadata_ or {},
                 'chunk_metadata': result.chunk_metadata or {},
                 'document': {
                     'id': str(result.document_id),
@@ -240,6 +240,6 @@ class VectorSearchService:
         """Apply metadata JSON filters"""
         for key, value in metadata_filter.items():
             query = query.filter(
-                DocumentChunk.metadata[key].astext == str(value)
+                DocumentChunk.metadata_[key].astext == str(value)
             )
         return query

@@ -65,7 +65,7 @@ class DocumentChunk(Base):
     embedding = Column(Vector(1536), nullable=False)
 
     # Metadata
-    metadata = Column(JSON, default=dict)
+    metadata_ = Column("metadata", JSON, default=dict)  # metadata is reserved by SQLAlchemy
     chunk_metadata = Column(JSON, default=dict)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
