@@ -26,6 +26,9 @@ chonkie = "^0.1.0"
 openai = "^1.0.0"
 tiktoken = "^0.5.0"
 python-magic = "^0.4.27"
+flashrank = "^0.2.0"
+slowapi = "^0.1.9"
+tenacity = "^8.0.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.0.0"

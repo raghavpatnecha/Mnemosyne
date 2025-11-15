@@ -12,8 +12,12 @@ from backend.models.chat_session import ChatSession
 from backend.models.chat_message import ChatMessage
 from backend.search.vector_search import VectorSearchService
 from backend.embeddings.openai_embedder import OpenAIEmbedder
+from backend.services.reranker_service import RerankerService
 from openai import AsyncOpenAI
 from backend.config import settings
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class ChatService:
@@ -26,6 +30,7 @@ class ChatService:
         self.db = db
         self.search_service = VectorSearchService(db)
         self.embedder = OpenAIEmbedder()
+        self.reranker = RerankerService()
         self.openai_client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
 
     async def chat_stream(
@@ -77,14 +82,26 @@ class ChatService:
         # Get conversation history
         history = self._get_history(session_id, limit=10)
 
-        # Retrieve relevant documents
+        # Retrieve relevant documents using hybrid search
         query_embedding = await self.embedder.embed(user_message)
-        search_results = self.search_service.search(
+
+        # Get more results for reranking (2x top_k)
+        search_results = self.search_service.hybrid_search(
+            query=user_message,
             query_embedding=query_embedding,
             collection_id=collection_id,
             user_id=user_id,
-            top_k=top_k
+            top_k=top_k * 2  # Get more for reranking
         )
+
+        # Rerank results if enabled
+        if self.reranker.is_available():
+            logger.debug(f"Reranking {len(search_results)} results")
+            search_results = self.reranker.rerank(
+                query=user_message,
+                chunks=search_results,
+                top_k=top_k
+            )
 
         # Build context
         context = self._build_context(search_results)

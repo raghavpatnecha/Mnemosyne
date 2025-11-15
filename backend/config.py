@@ -54,6 +54,31 @@ class Settings(BaseSettings):
     CHAT_TEMPERATURE: float = 0.7
     CHAT_MAX_TOKENS: int = 1000
 
+    # Reranking (Week 5)
+    RERANK_ENABLED: bool = True
+    RERANK_MODEL: str = "ms-marco-MultiBERT-L-12"
+    RERANK_TOP_K: int = 10
+
+    # Caching (Week 5)
+    CACHE_ENABLED: bool = True
+    CACHE_EMBEDDING_TTL: int = 86400  # 24 hours
+    CACHE_SEARCH_TTL: int = 3600  # 1 hour
+
+    # Rate Limiting (Week 5)
+    RATE_LIMIT_ENABLED: bool = True
+    RATE_LIMIT_CHAT: str = "10/minute"
+    RATE_LIMIT_RETRIEVAL: str = "100/minute"
+    RATE_LIMIT_UPLOAD: str = "20/hour"
+
+    # Query Reformulation (Week 5)
+    QUERY_REFORMULATION_ENABLED: bool = False  # Premium feature
+    QUERY_REFORMULATION_MODE: str = "expand"
+
+    # Retry Logic (Week 5)
+    RETRY_ENABLED: bool = True
+    RETRY_MAX_ATTEMPTS: int = 3
+    RETRY_EXPONENTIAL_BASE: int = 2
+
     class Config:
         env_file = ".env"
         case_sensitive = True

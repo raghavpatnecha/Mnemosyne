@@ -1,12 +1,14 @@
 """
 Mnemosyne API - FastAPI application entry point
-Week 1: Basic CRUD with authentication
+Weeks 1-5: Complete RAG-as-a-Service platform with advanced features
 """
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from backend.config import settings
 from backend.database import create_tables
+from backend.middleware.rate_limiter import setup_rate_limiting
+from backend.utils.error_handlers import setup_error_handlers
 
 # Create FastAPI app
 app = FastAPI(
@@ -25,6 +27,12 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Setup rate limiting (Week 5)
+setup_rate_limiting(app)
+
+# Setup error handlers (Week 5)
+setup_error_handlers(app)
 
 
 @app.on_event("startup")
