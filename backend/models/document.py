@@ -74,12 +74,19 @@ class Document(Base):
     metadata = Column(JSON, default=dict)
     processing_info = Column(JSON, default=dict)
 
+    # Processing results (Week 2+)
+    processed_at = Column(DateTime(timezone=True))
+    chunk_count = Column(Integer, default=0)
+    total_tokens = Column(Integer, default=0)
+    error_message = Column(Text)
+
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     # Relationships
     collection = relationship("Collection", back_populates="documents")
     user = relationship("User")
+    chunks = relationship("DocumentChunk", back_populates="document", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<Document(id={self.id}, filename={self.filename}, status={self.status})>"

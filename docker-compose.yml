@@ -21,32 +21,56 @@ services:
     networks:
       - mnemosyne-network
 
-  # Week 2: Add Redis
-  # redis:
-  #   image: redis:7-alpine
-  #   container_name: mnemosyne-redis
-  #   ports:
-  #     - "6379:6379"
-  #   volumes:
-  #     - redis_data:/data
-  #   networks:
-  #     - mnemosyne-network
+  redis:
+    image: redis:7-alpine
+    container_name: mnemosyne-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - mnemosyne-network
 
-  # Week 2: Add Celery worker
-  # celery-worker:
-  #   build: .
-  #   command: celery -A backend.celery_app worker --loglevel=info
-  #   depends_on:
-  #     - postgres
-  #     - redis
-  #   environment:
-  #     - DATABASE_URL=${DATABASE_URL}
-  #   networks:
-  #     - mnemosyne-network
+  celery-worker:
+    build: .
+    container_name: mnemosyne-celery-worker
+    command: celery -A backend.worker worker --loglevel=info
+    depends_on:
+      - postgres
+      - redis
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    volumes:
+      - ./backend:/app/backend
+      - ./uploads:/app/uploads
+    networks:
+      - mnemosyne-network
+
+  celery-beat:
+    build: .
+    container_name: mnemosyne-celery-beat
+    command: celery -A backend.worker beat --loglevel=info
+    depends_on:
+      - postgres
+      - redis
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+    volumes:
+      - ./backend:/app/backend
+    networks:
+      - mnemosyne-network
 
 volumes:
   postgres_data:
-  # redis_data:
+  redis_data:
 
 networks:
   mnemosyne-network:

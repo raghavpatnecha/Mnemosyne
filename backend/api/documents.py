@@ -21,11 +21,15 @@ from backend.models.collection import Collection
 from backend.schemas.document import (
     DocumentUpdate,
     DocumentResponse,
-    DocumentListResponse
+    DocumentListResponse,
+    DocumentStatusResponse
 )
 from backend.core.exceptions import http_404_not_found, http_400_bad_request
+from backend.storage.local import LocalStorage
+from backend.tasks.process_document import process_document_task
 
 router = APIRouter(prefix="/documents", tags=["documents"])
+storage = LocalStorage()
 
 
 @router.post("", response_model=DocumentResponse, status_code=status.HTTP_202_ACCEPTED)
@@ -81,6 +85,9 @@ async def create_document(
             f"Document with same content already exists (document_id: {existing.id})"
         )
 
+    # Save file to storage
+    file_path = storage.save(content, content_hash)
+
     # Parse metadata JSON
     try:
         metadata_dict = json.loads(metadata) if metadata else {}
@@ -91,19 +98,22 @@ async def create_document(
     document = Document(
         collection_id=collection_id,
         user_id=current_user.id,
-        title=file.filename,  # Default title to filename
+        title=file.filename,
         filename=file.filename,
         content_type=file.content_type,
         size_bytes=len(content),
         content_hash=content_hash,
-        status="pending",  # Week 1: no processing yet
+        status="pending",
         metadata=metadata_dict,
-        processing_info={}
+        processing_info={"file_path": file_path}
     )
 
     db.add(document)
     db.commit()
     db.refresh(document)
+
+    # Trigger async processing (Week 2)
+    process_document_task.delay(str(document.id))
 
     # Build response (using exact column names)
     return DocumentResponse(
@@ -314,6 +324,46 @@ async def update_document(
     )
 
 
+@router.get("/{document_id}/status", response_model=DocumentStatusResponse)
+async def get_document_status(
+    document_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get document processing status
+
+    Args:
+        document_id: Document UUID
+        db: Database session
+        current_user: Authenticated user
+
+    Returns:
+        DocumentStatusResponse: Processing status and details
+
+    Raises:
+        HTTPException: 404 if document not found
+    """
+    document = db.query(Document).filter(
+        Document.id == document_id,
+        Document.user_id == current_user.id
+    ).first()
+
+    if not document:
+        raise http_404_not_found("Document not found")
+
+    return DocumentStatusResponse(
+        document_id=document.id,
+        status=document.status,
+        chunk_count=document.chunk_count or 0,
+        total_tokens=document.total_tokens or 0,
+        error_message=document.error_message,
+        processing_info=document.processing_info or {},
+        created_at=document.created_at,
+        processed_at=document.processed_at
+    )
+
+
 @router.delete("/{document_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_document(
     document_id: UUID,
@@ -343,7 +393,13 @@ async def delete_document(
     if not document:
         raise http_404_not_found("Document not found")
 
-    # Delete
+    # Delete document and file
+    if document.processing_info and "file_path" in document.processing_info:
+        try:
+            storage.delete(document.processing_info["file_path"])
+        except Exception:
+            pass
+
     db.delete(document)
     db.commit()
 

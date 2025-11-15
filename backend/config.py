@@ -33,6 +33,22 @@ class Settings(BaseSettings):
     APP_NAME: str = "Mnemosyne"
     APP_VERSION: str = "0.1.0"
 
+    # Redis & Celery
+    REDIS_URL: str = "redis://localhost:6379/0"
+
+    # Storage
+    UPLOAD_DIR: str = "./uploads"
+    MAX_UPLOAD_SIZE: int = 100 * 1024 * 1024  # 100MB
+
+    # OpenAI
+    OPENAI_API_KEY: str = ""
+    EMBEDDING_MODEL: str = "text-embedding-3-large"
+    EMBEDDING_DIMENSIONS: int = 1536
+
+    # Processing
+    CHUNK_SIZE: int = 512
+    CHUNK_OVERLAP: int = 128
+
     class Config:
         env_file = ".env"
         case_sensitive = True

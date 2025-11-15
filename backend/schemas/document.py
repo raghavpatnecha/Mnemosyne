@@ -57,3 +57,18 @@ class DocumentListResponse(BaseModel):
             "has_more": True
         }
     )
+
+
+class DocumentStatusResponse(BaseModel):
+    """Schema for document processing status"""
+    document_id: UUID
+    status: str = Field(..., description="Processing status (pending, processing, completed, failed)")
+    chunk_count: int = Field(default=0, description="Number of chunks created")
+    total_tokens: int = Field(default=0, description="Total tokens processed")
+    error_message: Optional[str] = Field(None, description="Error message if failed")
+    processing_info: Dict = Field(default_factory=dict, description="Processing details")
+    created_at: datetime
+    processed_at: Optional[datetime] = Field(None, description="Timestamp when processing completed")
+
+    class Config:
+        from_attributes = True
