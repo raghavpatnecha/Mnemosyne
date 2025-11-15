@@ -57,12 +57,13 @@ async def health_check():
 
 
 # Import and register routers
-from backend.api import auth, collections, documents, retrievals
+from backend.api import auth, collections, documents, retrievals, chat
 
 app.include_router(auth.router, prefix="/api/v1")
 app.include_router(collections.router, prefix="/api/v1")
 app.include_router(documents.router, prefix="/api/v1")
 app.include_router(retrievals.router, prefix="/api/v1")
+app.include_router(chat.router, prefix="/api/v1")
 
 
 if __name__ == "__main__":

@@ -49,6 +49,11 @@ class Settings(BaseSettings):
     CHUNK_SIZE: int = 512
     CHUNK_OVERLAP: int = 128
 
+    # Chat
+    CHAT_MODEL: str = "gpt-4o-mini"
+    CHAT_TEMPERATURE: float = 0.7
+    CHAT_MAX_TOKENS: int = 1000
+
     class Config:
         env_file = ".env"
         case_sensitive = True
