@@ -54,10 +54,18 @@ class Settings(BaseSettings):
     CHAT_TEMPERATURE: float = 0.7
     CHAT_MAX_TOKENS: int = 1000
 
+    # LLM Provider (LiteLLM format: provider/model)
+    LLM_PROVIDER: str = "openai"  # openai, anthropic, groq, ollama, etc.
+    LLM_MODEL_STRING: str = ""  # Optional: override full model string (e.g., "openai/gpt-4o-mini")
+    LLM_API_BASE: str = ""  # Optional: custom API base URL
+    LLM_TIMEOUT: int = 60  # Timeout in seconds for LLM requests
+
     # Reranking (Week 5)
     RERANK_ENABLED: bool = True
-    RERANK_MODEL: str = "ms-marco-MultiBERT-L-12"
+    RERANK_PROVIDER: str = "flashrank"  # flashrank, cohere, jina, voyage, mixedbread
+    RERANK_MODEL: str = "ms-marco-MultiBERT-L-12"  # Provider-specific model name
     RERANK_TOP_K: int = 10
+    RERANK_API_KEY: str = ""  # API key for Cohere, Jina, Voyage, Mixedbread
 
     # Caching (Week 5)
     CACHE_ENABLED: bool = True

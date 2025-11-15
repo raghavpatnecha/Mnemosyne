@@ -1,12 +1,18 @@
 """
 Reranking Service for improving retrieval accuracy
 
-Uses Flashrank cross-encoder for local, fast reranking without API calls.
+Supports multiple reranker providers via the unified rerankers library:
+- Flashrank: Local, fast cross-encoder (no API calls)
+- Cohere: API-based reranking
+- Jina: API-based reranking
+- Voyage: API-based reranking
+- Mixedbread: API-based reranking
+
 Improves retrieval accuracy by 15-25% by reordering results based on
 query-document relevance.
 """
 
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
 from backend.config import settings
 import logging
 
@@ -15,29 +21,90 @@ logger = logging.getLogger(__name__)
 
 class RerankerService:
     """
-    Reranking service using Flashrank cross-encoder
+    Multi-provider reranking service using rerankers library
 
-    Flashrank provides:
-    - Local inference (no API calls)
-    - 3-5x faster than Cohere rerank
-    - Good quality for most RAG use cases
-    - No rate limits or costs
+    Supports:
+    - Flashrank: Local inference (no API calls, 3-5x faster than Cohere)
+    - Cohere: High-quality API-based reranking
+    - Jina: API-based reranking with various models
+    - Voyage: API-based reranking
+    - Mixedbread: API-based reranking
+
+    Provider selection via RERANK_PROVIDER config setting.
     """
 
     def __init__(self):
-        """Initialize Flashrank ranker"""
+        """Initialize reranker based on configured provider"""
+        self.reranker = None
+        self._initialize_reranker()
+
+    def _initialize_reranker(self):
+        """
+        Initialize the appropriate reranker based on provider setting
+
+        Supported providers:
+        - flashrank: Local cross-encoder (default)
+        - cohere: Cohere Rerank API
+        - jina: Jina Reranker API
+        - voyage: Voyage Rerank API
+        - mixedbread: Mixedbread Rerank API
+        """
+        if not settings.RERANK_ENABLED:
+            logger.info("Reranking disabled in settings")
+            return
+
+        provider = settings.RERANK_PROVIDER.lower()
+
         try:
-            from flashrank import Ranker, RerankRequest
-            self.ranker = Ranker(
-                model_name=settings.RERANK_MODEL,
-                cache_dir="./models"
+            from rerankers import Reranker
+
+            # Map provider to rerankers model type
+            provider_map = {
+                'flashrank': 'flashrank',
+                'cohere': 'api',
+                'jina': 'api',
+                'voyage': 'api',
+                'mixedbread': 'api'
+            }
+
+            if provider not in provider_map:
+                logger.error(
+                    f"Unsupported reranker provider: {provider}. "
+                    f"Supported: {list(provider_map.keys())}"
+                )
+                return
+
+            model_type = provider_map[provider]
+
+            # Build initialization kwargs
+            init_kwargs = {
+                'model_name': settings.RERANK_MODEL,
+                'model_type': model_type
+            }
+
+            # Add API key for API-based providers
+            if provider != 'flashrank' and settings.RERANK_API_KEY:
+                init_kwargs['api_key'] = settings.RERANK_API_KEY
+
+            # For flashrank, add cache directory
+            if provider == 'flashrank':
+                init_kwargs['cache_dir'] = './models'
+
+            # Initialize reranker
+            self.reranker = Reranker(**init_kwargs)
+
+            logger.info(
+                f"Reranker initialized: provider={provider}, "
+                f"model={settings.RERANK_MODEL}"
             )
-            self.RerankRequest = RerankRequest
-            logger.info(f"Reranker initialized with model: {settings.RERANK_MODEL}")
+
         except ImportError:
-            logger.warning("Flashrank not installed. Reranking disabled.")
-            self.ranker = None
-            self.RerankRequest = None
+            logger.warning(
+                "rerankers library not installed. "
+                "Install with: pip install rerankers"
+            )
+        except Exception as e:
+            logger.error(f"Failed to initialize reranker: {e}")
 
     def rerank(
         self,
@@ -46,7 +113,7 @@ class RerankerService:
         top_k: Optional[int] = None
     ) -> List[Dict]:
         """
-        Rerank chunks using cross-encoder
+        Rerank chunks using configured reranker
 
         Args:
             query: Search query
@@ -57,44 +124,48 @@ class RerankerService:
             Reranked chunks with added 'rerank_score' field
 
         Process:
-        1. Format chunks for Flashrank
-        2. Run cross-encoder scoring (semantic relevance)
-        3. Sort by rerank score (descending)
+        1. Convert chunks to rerankers Document format
+        2. Run reranking via unified API
+        3. Convert results back to chunk format
         4. Return top_k results
         """
-        if not self.ranker or not chunks:
+        if not self.reranker or not chunks:
             logger.debug("Reranker not available or no chunks provided")
             return chunks
 
-        if not settings.RERANK_ENABLED:
-            logger.debug("Reranking disabled in settings")
-            return chunks
-
         try:
-            # Format passages for Flashrank
-            passages = []
-            for i, chunk in enumerate(chunks):
-                passages.append({
-                    "id": i,
-                    "text": chunk.get("content", ""),
-                    "meta": chunk  # Preserve original chunk data
-                })
+            from rerankers import Document
 
-            # Create rerank request
-            rerank_request = self.RerankRequest(
-                query=query,
-                passages=passages
-            )
+            # Convert chunks to Document objects
+            documents = []
+            for i, chunk in enumerate(chunks):
+                doc_id = chunk.get('chunk_id', f'chunk_{i}')
+                content = chunk.get('content', '')
+
+                documents.append(
+                    Document(
+                        text=content,
+                        doc_id=doc_id,
+                        metadata=chunk  # Preserve original chunk data
+                    )
+                )
 
             # Perform reranking
-            reranked_results = self.ranker.rerank(rerank_request)
+            rerank_results = self.reranker.rank(
+                query=query,
+                docs=documents
+            )
 
-            # Extract and format results
+            # Convert results back to chunk format
             results = []
-            for item in reranked_results:
-                chunk = item["meta"]
-                # Add rerank score to chunk
-                chunk["rerank_score"] = float(item["score"])
+            for result in rerank_results.results:
+                # Get original chunk from metadata
+                chunk = result.document.metadata.copy()
+
+                # Add rerank score
+                chunk['rerank_score'] = float(result.score)
+                chunk['rerank_rank'] = result.rank
+
                 results.append(chunk)
 
             # Apply top_k if specified
@@ -137,7 +208,7 @@ class RerankerService:
         # Filter by threshold
         filtered = [
             chunk for chunk in reranked
-            if chunk.get("rerank_score", 0) >= threshold
+            if chunk.get('rerank_score', 0) >= threshold
         ]
 
         # Apply top_k
@@ -145,7 +216,8 @@ class RerankerService:
             filtered = filtered[:top_k]
 
         logger.debug(
-            f"Filtered {len(reranked)} chunks to {len(filtered)} above threshold {threshold}"
+            f"Filtered {len(reranked)} chunks to {len(filtered)} "
+            f"above threshold {threshold}"
         )
 
         return filtered
@@ -186,14 +258,29 @@ class RerankerService:
             chunks: List of chunks
 
         Returns:
-            List of rerank scores (same order as input)
+            List of rerank scores (same order as reranked results)
         """
-        if not self.ranker or not chunks:
+        if not self.reranker or not chunks:
             return [0.0] * len(chunks)
 
         reranked = self.rerank(query, chunks)
-        return [chunk.get("rerank_score", 0.0) for chunk in reranked]
+        return [chunk.get('rerank_score', 0.0) for chunk in reranked]
 
     def is_available(self) -> bool:
-        """Check if reranker is available"""
-        return self.ranker is not None and settings.RERANK_ENABLED
+        """Check if reranker is available and enabled"""
+        return self.reranker is not None and settings.RERANK_ENABLED
+
+    def get_provider_info(self) -> Dict[str, Any]:
+        """
+        Get information about the current reranker provider
+
+        Returns:
+            Dictionary with provider details
+        """
+        return {
+            'enabled': settings.RERANK_ENABLED,
+            'provider': settings.RERANK_PROVIDER,
+            'model': settings.RERANK_MODEL,
+            'available': self.is_available(),
+            'requires_api_key': settings.RERANK_PROVIDER != 'flashrank'
+        }
