@@ -1,0 +1,6 @@
+[submodule "references/surfsense"]
+	path = references/surfsense
+	url = https://github.com/MODSetter/SurfSense
+[submodule "references/rag-anything"]
+	path = references/rag-anything
+	url = https://github.com/HKUDS/RAG-Anything
