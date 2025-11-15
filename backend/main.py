@@ -31,9 +31,9 @@ app.add_middleware(
 async def startup_event():
     """Initialize database tables on startup"""
     create_tables()
-    print(f"🚀 {settings.APP_NAME} v{settings.APP_VERSION} started")
-    print(f"📊 Database: {settings.DATABASE_URL}")
-    print(f"📝 API Docs: http://{settings.API_HOST}:{settings.API_PORT}/docs")
+    print(f"{settings.APP_NAME} v{settings.APP_VERSION} started")
+    print(f"Database: {settings.DATABASE_URL}")
+    print(f"API Docs: http://{settings.API_HOST}:{settings.API_PORT}/docs")
 
 
 @app.get("/")
