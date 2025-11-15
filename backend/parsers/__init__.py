@@ -5,6 +5,9 @@ Factory pattern for selecting appropriate parser based on content type
 
 from backend.parsers.docling_parser import DoclingParser
 from backend.parsers.text_parser import TextParser
+from backend.parsers.audio_parser import AudioParser
+from backend.parsers.excel_parser import ExcelParser
+from backend.parsers.image_parser import ImageParser
 
 
 class ParserFactory:
@@ -13,6 +16,9 @@ class ParserFactory:
     def __init__(self):
         self.parsers = [
             DoclingParser(),
+            AudioParser(),
+            ExcelParser(),
+            ImageParser(),
             TextParser(),
         ]
 
@@ -36,4 +42,4 @@ class ParserFactory:
         raise ValueError(f"No parser available for content type: {content_type}")
 
 
-__all__ = ["ParserFactory", "DoclingParser", "TextParser"]
+__all__ = ["ParserFactory", "DoclingParser", "TextParser", "AudioParser", "ExcelParser", "ImageParser"]

@@ -127,7 +127,7 @@ async def create_document(
         content_hash=document.content_hash,
         unique_identifier_hash=document.unique_identifier_hash,
         status=document.status,
-        metadata=document.metadata,
+        metadata=document.metadata_,
         processing_info=document.processing_info,
         created_at=document.created_at,
         updated_at=document.updated_at
@@ -198,7 +198,7 @@ async def list_documents(
             content_hash=doc.content_hash,
             unique_identifier_hash=doc.unique_identifier_hash,
             status=doc.status,
-            metadata=doc.metadata,
+            metadata=doc.metadata_,
             processing_info=doc.processing_info,
             created_at=doc.created_at,
             updated_at=doc.updated_at
@@ -258,7 +258,7 @@ async def get_document(
         content_hash=document.content_hash,
         unique_identifier_hash=document.unique_identifier_hash,
         status=document.status,
-        metadata=document.metadata,
+        metadata=document.metadata_,
         processing_info=document.processing_info,
         created_at=document.created_at,
         updated_at=document.updated_at
@@ -317,7 +317,7 @@ async def update_document(
         content_hash=document.content_hash,
         unique_identifier_hash=document.unique_identifier_hash,
         status=document.status,
-        metadata=document.metadata,
+        metadata=document.metadata_,
         processing_info=document.processing_info,
         created_at=document.created_at,
         updated_at=document.updated_at

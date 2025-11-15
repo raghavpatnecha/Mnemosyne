@@ -47,7 +47,7 @@ class ChatMessage(Base):
 
     # Retrieval metadata (for assistant messages)
     chunk_ids = Column(JSON, default=list)
-    metadata = Column(JSON, default=dict)
+    metadata_ = Column("metadata", JSON, default=dict)  # metadata is reserved by SQLAlchemy
 
     created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
 

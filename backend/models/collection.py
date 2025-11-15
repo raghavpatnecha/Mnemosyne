@@ -46,7 +46,7 @@ class Collection(Base):
 
     name = Column(String(255), nullable=False)
     description = Column(Text)
-    metadata = Column(JSON, default=dict)
+    metadata_ = Column("metadata", JSON, default=dict)  # metadata is reserved by SQLAlchemy
     config = Column(JSON, default=dict)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())

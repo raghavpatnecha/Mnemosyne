@@ -56,7 +56,7 @@ class ProcessDocumentTask(Task):
             self._embedder = OpenAIEmbedder()
         return self._embedder
 
-    def run(self, document_id: str):
+    async def run(self, document_id: str):
         """
         Process document: parse → chunk → embed → store
 
@@ -78,14 +78,14 @@ class ProcessDocumentTask(Task):
             logger.info(f"Parsing document {document_id}")
             file_path = self.storage.get_path(document.processing_info["file_path"])
             parser = self.parser_factory.get_parser(document.content_type)
-            parsed = parser.parse(str(file_path))
+            parsed = await parser.parse(str(file_path))
 
             logger.info(f"Chunking document {document_id}")
             chunks = self.chunker.chunk(parsed["content"])
 
             logger.info(f"Generating embeddings for {len(chunks)} chunks")
             texts = [chunk["content"] for chunk in chunks]
-            embeddings = asyncio.run(self.embedder.embed_batch(texts))
+            embeddings = await self.embedder.embed_batch(texts)
 
             logger.info(f"Storing {len(chunks)} chunks")
             for chunk_data, embedding in zip(chunks, embeddings):

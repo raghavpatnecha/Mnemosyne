@@ -72,8 +72,10 @@ kiwisolver==1.4.5
 langchain==0.3.1
 langchain-community==0.3.1
 langchain-core==0.3.6
+langchain-litellm==0.2.2
 langchain-text-splitters==0.3.0
 langsmith==0.1.125
+litellm==1.52.14
 MarkupSafe==2.1.5
 marshmallow==3.22.0
 matplotlib==3.9.2
@@ -91,6 +93,7 @@ networkx==3.2.1
 notebook_shim==0.2.4
 numpy==1.26.4
 openai==1.47.0
+openpyxl==3.1.5
 orjson==3.10.7
 overrides==7.7.0
 packaging==24.1
@@ -121,6 +124,7 @@ PyYAML==6.0.2
 pyzmq==26.1.1
 referencing==0.35.1
 regex==2024.9.11
+rerankers==0.5.3
 requests==2.32.3
 rfc3339-validator==0.1.4
 rfc3986-validator==0.1.1

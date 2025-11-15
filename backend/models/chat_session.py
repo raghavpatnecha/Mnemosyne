@@ -43,7 +43,7 @@ class ChatSession(Base):
     collection_id = Column(UUID(as_uuid=True), ForeignKey("collections.id", ondelete="SET NULL"), index=True)
 
     title = Column(String(255))
-    metadata = Column(JSON, default=dict)
+    metadata_ = Column("metadata", JSON, default=dict)  # metadata is reserved by SQLAlchemy
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

@@ -9,11 +9,8 @@ Includes:
 - QueryReformulationService: Query improvement
 """
 
-from backend.services.chat_service import ChatService
-from backend.services.reranker_service import RerankerService
-from backend.services.cache_service import CacheService
-from backend.services.quota_service import QuotaService
-from backend.services.query_reformulation import QueryReformulationService
+# Lazy imports to avoid circular dependencies
+# Import services directly from their modules instead
 
 __all__ = [
     "ChatService",
