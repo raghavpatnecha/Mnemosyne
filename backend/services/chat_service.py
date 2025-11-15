@@ -87,7 +87,7 @@ class ChatService:
 
         # Get more results for reranking (2x top_k)
         search_results = self.search_service.hybrid_search(
-            query=user_message,
+            query_text=user_message,
             query_embedding=query_embedding,
             collection_id=collection_id,
             user_id=user_id,
