@@ -21,36 +21,37 @@ from backend.parsers.excel_parser import ExcelParser
 class TestExcelParser:
     """Test suite for ExcelParser"""
 
-    def test_can_parse_xlsx(self):
+    async def test_can_parse_xlsx(self):
         """Test can_parse with XLSX MIME type"""
         parser = ExcelParser()
         assert parser.can_parse(
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         ) is True
 
-    def test_can_parse_xls(self):
+    async def test_can_parse_xls(self):
         """Test can_parse with XLS MIME type"""
         parser = ExcelParser()
         assert parser.can_parse("application/vnd.ms-excel") is True
 
-    def test_can_parse_invalid_pdf(self):
+    async def test_can_parse_invalid_pdf(self):
         """Test can_parse rejects PDF MIME type"""
         parser = ExcelParser()
         assert parser.can_parse("application/pdf") is False
 
-    def test_can_parse_invalid_text(self):
+    async def test_can_parse_invalid_text(self):
         """Test can_parse rejects text MIME type"""
         parser = ExcelParser()
         assert parser.can_parse("text/plain") is False
 
-    def test_can_parse_invalid_csv(self):
+    async def test_can_parse_invalid_csv(self):
         """Test can_parse rejects CSV MIME type"""
         parser = ExcelParser()
         assert parser.can_parse("text/csv") is False
 
     @patch('backend.parsers.excel_parser.pd.ExcelFile')
     @patch('backend.parsers.excel_parser.pd.read_excel')
-    def test_parse_single_sheet(self, mock_read_excel, mock_excel_file_class):
+    @pytest.mark.asyncio
+    async def test_parse_single_sheet(self, mock_read_excel, mock_excel_file_class):
         """Test parsing Excel file with single sheet"""
         # Setup ExcelFile mock
         mock_excel_file = MagicMock()
@@ -66,7 +67,7 @@ class TestExcelParser:
         mock_read_excel.return_value = test_df
 
         parser = ExcelParser()
-        result = parser.parse("/fake/path/test.xlsx")
+        result = await parser.parse("/fake/path/test.xlsx")
 
         # Verify content includes sheet header
         assert "## Sheet: Sheet1" in result["content"]
@@ -94,7 +95,8 @@ class TestExcelParser:
 
     @patch('backend.parsers.excel_parser.pd.ExcelFile')
     @patch('backend.parsers.excel_parser.pd.read_excel')
-    def test_parse_multi_sheet(self, mock_read_excel, mock_excel_file_class):
+    @pytest.mark.asyncio
+    async def test_parse_multi_sheet(self, mock_read_excel, mock_excel_file_class):
         """Test parsing Excel file with multiple sheets"""
         mock_excel_file = MagicMock()
         mock_excel_file.sheet_names = ["Sales", "Inventory", "Summary"]
@@ -117,7 +119,7 @@ class TestExcelParser:
         mock_read_excel.side_effect = [sales_df, inventory_df, summary_df]
 
         parser = ExcelParser()
-        result = parser.parse("/fake/path/workbook.xlsx")
+        result = await parser.parse("/fake/path/workbook.xlsx")
 
         # Verify all sheets are in content
         assert "## Sheet: Sales" in result["content"]
@@ -136,7 +138,8 @@ class TestExcelParser:
 
     @patch('backend.parsers.excel_parser.pd.ExcelFile')
     @patch('backend.parsers.excel_parser.pd.read_excel')
-    def test_parse_empty_sheet(self, mock_read_excel, mock_excel_file_class):
+    @pytest.mark.asyncio
+    async def test_parse_empty_sheet(self, mock_read_excel, mock_excel_file_class):
         """Test parsing Excel file with empty sheet"""
         mock_excel_file = MagicMock()
         mock_excel_file.sheet_names = ["EmptySheet"]
@@ -147,7 +150,7 @@ class TestExcelParser:
         mock_read_excel.return_value = empty_df
 
         parser = ExcelParser()
-        result = parser.parse("/fake/path/empty.xlsx")
+        result = await parser.parse("/fake/path/empty.xlsx")
 
         # Empty sheet should not appear in content
         assert "## Sheet: EmptySheet" not in result["content"]
@@ -166,7 +169,8 @@ class TestExcelParser:
 
     @patch('backend.parsers.excel_parser.pd.ExcelFile')
     @patch('backend.parsers.excel_parser.pd.read_excel')
-    def test_parse_mixed_empty_and_data_sheets(self, mock_read_excel, mock_excel_file_class):
+    @pytest.mark.asyncio
+    async def test_parse_mixed_empty_and_data_sheets(self, mock_read_excel, mock_excel_file_class):
         """Test parsing with mix of empty and data sheets"""
         mock_excel_file = MagicMock()
         mock_excel_file.sheet_names = ["Data", "Empty", "MoreData"]
@@ -179,7 +183,7 @@ class TestExcelParser:
         mock_read_excel.side_effect = [data_df, empty_df, more_data_df]
 
         parser = ExcelParser()
-        result = parser.parse("/fake/path/mixed.xlsx")
+        result = await parser.parse("/fake/path/mixed.xlsx")
 
         # Only non-empty sheets in content
         assert "## Sheet: Data" in result["content"]
@@ -194,7 +198,7 @@ class TestExcelParser:
 
     @patch('backend.parsers.excel_parser.pd.ExcelFile')
     @patch('backend.parsers.excel_parser.pd.read_excel')
-    def test_dataframe_to_markdown_with_tabulate(self, mock_read_excel, mock_excel_file_class):
+    async def test_dataframe_to_markdown_with_tabulate(self, mock_read_excel, mock_excel_file_class):
         """Test markdown conversion using pandas to_markdown"""
         mock_excel_file = MagicMock()
         mock_excel_file.sheet_names = ["Sheet1"]
@@ -207,7 +211,7 @@ class TestExcelParser:
         mock_read_excel.return_value = test_df
 
         parser = ExcelParser()
-        result = parser.parse("/fake/path/test.xlsx")
+        result = await parser.parse("/fake/path/test.xlsx")
 
         # Should contain markdown table markers
         assert "|" in result["content"]
@@ -215,7 +219,7 @@ class TestExcelParser:
 
     @patch('backend.parsers.excel_parser.pd.ExcelFile')
     @patch('backend.parsers.excel_parser.pd.read_excel')
-    def test_dataframe_to_markdown_fallback(self, mock_read_excel, mock_excel_file_class):
+    async def test_dataframe_to_markdown_fallback(self, mock_read_excel, mock_excel_file_class):
         """Test markdown conversion fallback when to_markdown not available"""
         mock_excel_file = MagicMock()
         mock_excel_file.sheet_names = ["Sheet1"]
@@ -235,7 +239,7 @@ class TestExcelParser:
         mock_read_excel.return_value = test_df
 
         parser = ExcelParser()
-        result = parser.parse("/fake/path/test.xlsx")
+        result = await parser.parse("/fake/path/test.xlsx")
 
         # Should still produce markdown table using fallback
         content = result["content"]
@@ -244,7 +248,7 @@ class TestExcelParser:
         assert "---" in content
         assert "Alice" in content
 
-    def test_manual_markdown_table(self):
+    async def test_manual_markdown_table(self):
         """Test manual markdown table formatting"""
         parser = ExcelParser()
 
@@ -264,7 +268,7 @@ class TestExcelParser:
         assert '| Alice | 95 | A |' in lines[2]
         assert '| Bob | 87 | B |' in lines[3]
 
-    def test_manual_markdown_table_with_nan(self):
+    async def test_manual_markdown_table_with_nan(self):
         """Test manual markdown table with NaN values"""
         parser = ExcelParser()
 
@@ -279,7 +283,7 @@ class TestExcelParser:
         assert 'alice@test.com' in markdown
         assert '| Bob |  |' in markdown or '| Bob | |' in markdown
 
-    def test_manual_markdown_table_empty(self):
+    async def test_manual_markdown_table_empty(self):
         """Test manual markdown table with empty dataframe"""
         parser = ExcelParser()
 
@@ -291,7 +295,8 @@ class TestExcelParser:
 
     @patch('backend.parsers.excel_parser.pd.ExcelFile')
     @patch('backend.parsers.excel_parser.pd.read_excel')
-    def test_parse_xlsx_engine(self, mock_read_excel, mock_excel_file_class):
+    @pytest.mark.asyncio
+    async def test_parse_xlsx_engine(self, mock_read_excel, mock_excel_file_class):
         """Test correct engine selection for XLSX files"""
         mock_excel_file = MagicMock()
         mock_excel_file.sheet_names = ["Sheet1"]
@@ -301,14 +306,15 @@ class TestExcelParser:
         mock_read_excel.return_value = test_df
 
         parser = ExcelParser()
-        parser.parse("/fake/path/test.xlsx")
+        await parser.parse("/fake/path/test.xlsx")
 
         # Should use openpyxl engine for .xlsx
         mock_excel_file_class.assert_called_with("/fake/path/test.xlsx", engine='openpyxl')
 
     @patch('backend.parsers.excel_parser.pd.ExcelFile')
     @patch('backend.parsers.excel_parser.pd.read_excel')
-    def test_parse_xls_engine(self, mock_read_excel, mock_excel_file_class):
+    @pytest.mark.asyncio
+    async def test_parse_xls_engine(self, mock_read_excel, mock_excel_file_class):
         """Test correct engine selection for XLS files"""
         mock_excel_file = MagicMock()
         mock_excel_file.sheet_names = ["Sheet1"]
@@ -318,14 +324,15 @@ class TestExcelParser:
         mock_read_excel.return_value = test_df
 
         parser = ExcelParser()
-        parser.parse("/fake/path/old_format.xls")
+        await parser.parse("/fake/path/old_format.xls")
 
         # Should use None (default) engine for .xls
         mock_excel_file_class.assert_called_with("/fake/path/old_format.xls", engine=None)
 
     @patch('backend.parsers.excel_parser.pd.ExcelFile')
     @patch('backend.parsers.excel_parser.pd.read_excel')
-    def test_parse_special_characters_in_data(self, mock_read_excel, mock_excel_file_class):
+    @pytest.mark.asyncio
+    async def test_parse_special_characters_in_data(self, mock_read_excel, mock_excel_file_class):
         """Test parsing with special characters in data"""
         mock_excel_file = MagicMock()
         mock_excel_file.sheet_names = ["Sheet1"]
@@ -338,7 +345,7 @@ class TestExcelParser:
         mock_read_excel.return_value = test_df
 
         parser = ExcelParser()
-        result = parser.parse("/fake/path/special.xlsx")
+        result = await parser.parse("/fake/path/special.xlsx")
 
         # Special characters should be preserved
         assert 'Alice & Bob' in result["content"]
@@ -347,7 +354,8 @@ class TestExcelParser:
 
     @patch('backend.parsers.excel_parser.pd.ExcelFile')
     @patch('backend.parsers.excel_parser.pd.read_excel')
-    def test_parse_numeric_column_names(self, mock_read_excel, mock_excel_file_class):
+    @pytest.mark.asyncio
+    async def test_parse_numeric_column_names(self, mock_read_excel, mock_excel_file_class):
         """Test parsing with numeric column names"""
         mock_excel_file = MagicMock()
         mock_excel_file.sheet_names = ["Sheet1"]
@@ -362,7 +370,7 @@ class TestExcelParser:
         mock_read_excel.return_value = test_df
 
         parser = ExcelParser()
-        result = parser.parse("/fake/path/numeric_cols.xlsx")
+        result = await parser.parse("/fake/path/numeric_cols.xlsx")
 
         # Numeric columns should be converted to strings
         metadata = result["metadata"]
@@ -371,7 +379,8 @@ class TestExcelParser:
 
     @patch('backend.parsers.excel_parser.pd.ExcelFile')
     @patch('backend.parsers.excel_parser.pd.read_excel')
-    def test_parse_large_sheet(self, mock_read_excel, mock_excel_file_class):
+    @pytest.mark.asyncio
+    async def test_parse_large_sheet(self, mock_read_excel, mock_excel_file_class):
         """Test parsing large sheet with many rows"""
         mock_excel_file = MagicMock()
         mock_excel_file.sheet_names = ["LargeSheet"]
@@ -385,7 +394,7 @@ class TestExcelParser:
         mock_read_excel.return_value = large_df
 
         parser = ExcelParser()
-        result = parser.parse("/fake/path/large.xlsx")
+        result = await parser.parse("/fake/path/large.xlsx")
 
         metadata = result["metadata"]
         assert metadata["total_rows"] == 1000

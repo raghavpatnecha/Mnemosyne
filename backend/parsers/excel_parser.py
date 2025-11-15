@@ -65,7 +65,7 @@ class ExcelParser:
 
         return "\n".join(lines)
 
-    def parse(self, file_path: str) -> Dict[str, Any]:
+    async def parse(self, file_path: str) -> Dict[str, Any]:
         """
         Parse Excel file and convert to markdown tables
 

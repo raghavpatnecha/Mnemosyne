@@ -87,7 +87,7 @@ class ImageParser:
         }
         return format_map.get(extension, "image/jpeg")
 
-    def parse(self, file_path: str) -> Dict[str, Any]:
+    async def parse(self, file_path: str) -> Dict[str, Any]:
         """
         Parse image and extract visual description and text using OpenAI Vision API
 

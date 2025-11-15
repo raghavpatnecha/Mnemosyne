@@ -25,7 +25,7 @@ class TestImageParser:
 
     @patch('backend.parsers.image_parser.settings')
     @patch('backend.parsers.image_parser.OpenAI')
-    def test_init_with_api_key(self, mock_openai_class, mock_settings):
+    async def test_init_with_api_key(self, mock_openai_class, mock_settings):
         """Test initialization with valid API key"""
         mock_settings.OPENAI_API_KEY = "test_key"
 
@@ -37,7 +37,7 @@ class TestImageParser:
 
     @patch('backend.parsers.image_parser.settings')
     @patch('backend.parsers.image_parser.OpenAI')
-    def test_init_without_api_key(self, mock_openai_class, mock_settings):
+    async def test_init_without_api_key(self, mock_openai_class, mock_settings):
         """Test initialization without API key logs warning"""
         mock_settings.OPENAI_API_KEY = None
 
@@ -45,55 +45,55 @@ class TestImageParser:
 
         mock_openai_class.assert_called_once_with(api_key=None)
 
-    def test_can_parse_png(self):
+    async def test_can_parse_png(self):
         """Test can_parse with PNG MIME type"""
         parser = ImageParser()
         assert parser.can_parse("image/png") is True
 
-    def test_can_parse_jpeg(self):
+    async def test_can_parse_jpeg(self):
         """Test can_parse with JPEG MIME type"""
         parser = ImageParser()
         assert parser.can_parse("image/jpeg") is True
 
-    def test_can_parse_jpg(self):
+    async def test_can_parse_jpg(self):
         """Test can_parse with JPG MIME type"""
         parser = ImageParser()
         assert parser.can_parse("image/jpg") is True
 
-    def test_can_parse_webp(self):
+    async def test_can_parse_webp(self):
         """Test can_parse with WEBP MIME type"""
         parser = ImageParser()
         assert parser.can_parse("image/webp") is True
 
-    def test_can_parse_case_insensitive(self):
+    async def test_can_parse_case_insensitive(self):
         """Test can_parse is case insensitive"""
         parser = ImageParser()
         assert parser.can_parse("IMAGE/PNG") is True
         assert parser.can_parse("Image/Jpeg") is True
 
-    def test_can_parse_invalid_gif(self):
+    async def test_can_parse_invalid_gif(self):
         """Test can_parse rejects GIF MIME type"""
         parser = ImageParser()
         assert parser.can_parse("image/gif") is False
 
-    def test_can_parse_invalid_svg(self):
+    async def test_can_parse_invalid_svg(self):
         """Test can_parse rejects SVG MIME type"""
         parser = ImageParser()
         assert parser.can_parse("image/svg+xml") is False
 
-    def test_can_parse_invalid_text(self):
+    async def test_can_parse_invalid_text(self):
         """Test can_parse rejects text MIME type"""
         parser = ImageParser()
         assert parser.can_parse("text/plain") is False
 
-    def test_can_parse_invalid_pdf(self):
+    async def test_can_parse_invalid_pdf(self):
         """Test can_parse rejects PDF MIME type"""
         parser = ImageParser()
         assert parser.can_parse("application/pdf") is False
 
     @patch('backend.parsers.image_parser.Path')
     @patch('builtins.open', new_callable=mock_open, read_data=b'fake_image_data')
-    def test_encode_image_success(self, mock_file, mock_path_class):
+    async def test_encode_image_success(self, mock_file, mock_path_class):
         """Test successful image encoding to base64"""
         mock_path = MagicMock()
         mock_path.exists.return_value = True
@@ -107,7 +107,7 @@ class TestImageParser:
         mock_file.assert_called_once_with("/fake/path/image.png", "rb")
 
     @patch('backend.parsers.image_parser.Path')
-    def test_encode_image_file_not_found(self, mock_path_class):
+    async def test_encode_image_file_not_found(self, mock_path_class):
         """Test encoding raises FileNotFoundError for missing file"""
         mock_path = MagicMock()
         mock_path.exists.return_value = False
@@ -120,7 +120,7 @@ class TestImageParser:
 
     @patch('backend.parsers.image_parser.Path')
     @patch('builtins.open', side_effect=IOError("Permission denied"))
-    def test_encode_image_read_error(self, mock_file, mock_path_class):
+    async def test_encode_image_read_error(self, mock_file, mock_path_class):
         """Test encoding raises IOError when file cannot be read"""
         mock_path = MagicMock()
         mock_path.exists.return_value = True
@@ -131,32 +131,32 @@ class TestImageParser:
         with pytest.raises(IOError, match="Failed to read image file"):
             parser._encode_image("/fake/path/protected.png")
 
-    def test_get_image_format_png(self):
+    async def test_get_image_format_png(self):
         """Test format detection for PNG files"""
         parser = ImageParser()
         assert parser._get_image_format("/path/to/image.png") == "image/png"
 
-    def test_get_image_format_jpg(self):
+    async def test_get_image_format_jpg(self):
         """Test format detection for JPG files"""
         parser = ImageParser()
         assert parser._get_image_format("/path/to/photo.jpg") == "image/jpeg"
 
-    def test_get_image_format_jpeg(self):
+    async def test_get_image_format_jpeg(self):
         """Test format detection for JPEG files"""
         parser = ImageParser()
         assert parser._get_image_format("/path/to/photo.jpeg") == "image/jpeg"
 
-    def test_get_image_format_webp(self):
+    async def test_get_image_format_webp(self):
         """Test format detection for WEBP files"""
         parser = ImageParser()
         assert parser._get_image_format("/path/to/image.webp") == "image/webp"
 
-    def test_get_image_format_unknown(self):
+    async def test_get_image_format_unknown(self):
         """Test format detection defaults to JPEG for unknown"""
         parser = ImageParser()
         assert parser._get_image_format("/path/to/file.bmp") == "image/jpeg"
 
-    def test_get_image_format_case_insensitive(self):
+    async def test_get_image_format_case_insensitive(self):
         """Test format detection is case insensitive"""
         parser = ImageParser()
         assert parser._get_image_format("/path/to/IMAGE.PNG") == "image/png"
@@ -166,7 +166,8 @@ class TestImageParser:
     @patch('backend.parsers.image_parser.Path')
     @patch('backend.parsers.image_parser.OpenAI')
     @patch('builtins.open', new_callable=mock_open, read_data=b'image_data')
-    def test_parse_success(self, mock_file, mock_openai_class, mock_path_class, mock_settings):
+    @pytest.mark.asyncio
+    async def test_parse_success(self, mock_file, mock_openai_class, mock_path_class, mock_settings):
         """Test successful image parsing with Vision API"""
         mock_settings.OPENAI_API_KEY = "test_key"
 
@@ -195,7 +196,7 @@ class TestImageParser:
         mock_client.chat.completions.create.return_value = mock_response
 
         parser = ImageParser()
-        result = parser.parse("/fake/path/screenshot.png")
+        result = await parser.parse("/fake/path/screenshot.png")
 
         # Verify content
         assert "dashboard" in result["content"]
@@ -219,7 +220,8 @@ class TestImageParser:
     @patch('backend.parsers.image_parser.Path')
     @patch('backend.parsers.image_parser.OpenAI')
     @patch('builtins.open', new_callable=mock_open, read_data=b'image_data')
-    def test_parse_empty_response(self, mock_file, mock_openai_class, mock_path_class, mock_settings):
+    @pytest.mark.asyncio
+    async def test_parse_empty_response(self, mock_file, mock_openai_class, mock_path_class, mock_settings):
         """Test parsing with empty API response"""
         mock_settings.OPENAI_API_KEY = "test_key"
 
@@ -242,25 +244,27 @@ class TestImageParser:
         mock_client.chat.completions.create.return_value = mock_response
 
         parser = ImageParser()
-        result = parser.parse("/fake/path/blank.png")
+        result = await parser.parse("/fake/path/blank.png")
 
         assert result["content"] == ""
         assert result["metadata"]["file_name"] == "blank.png"
 
     @patch('backend.parsers.image_parser.settings')
     @patch('backend.parsers.image_parser.OpenAI')
-    def test_parse_missing_api_key(self, mock_openai_class, mock_settings):
+    @pytest.mark.asyncio
+    async def test_parse_missing_api_key(self, mock_openai_class, mock_settings):
         """Test parse raises ValueError when API key is missing"""
         mock_settings.OPENAI_API_KEY = None
 
         parser = ImageParser()
 
         with pytest.raises(ValueError, match="OPENAI_API_KEY not configured"):
-            parser.parse("/fake/path/image.png")
+            await parser.parse("/fake/path/image.png")
 
     @patch('backend.parsers.image_parser.settings')
     @patch('backend.parsers.image_parser.Path')
-    def test_parse_file_not_found(self, mock_path_class, mock_settings):
+    @pytest.mark.asyncio
+    async def test_parse_file_not_found(self, mock_path_class, mock_settings):
         """Test parse raises FileNotFoundError for missing file"""
         mock_settings.OPENAI_API_KEY = "test_key"
 
@@ -271,13 +275,14 @@ class TestImageParser:
         parser = ImageParser()
 
         with pytest.raises(FileNotFoundError):
-            parser.parse("/fake/path/missing.png")
+            await parser.parse("/fake/path/missing.png")
 
     @patch('backend.parsers.image_parser.settings')
     @patch('backend.parsers.image_parser.Path')
     @patch('backend.parsers.image_parser.OpenAI')
     @patch('builtins.open', new_callable=mock_open, read_data=b'image_data')
-    def test_parse_openai_error(self, mock_file, mock_openai_class, mock_path_class, mock_settings):
+    @pytest.mark.asyncio
+    async def test_parse_openai_error(self, mock_file, mock_openai_class, mock_path_class, mock_settings):
         """Test parse raises OpenAIError on API failure"""
         mock_settings.OPENAI_API_KEY = "test_key"
 
@@ -296,13 +301,14 @@ class TestImageParser:
         parser = ImageParser()
 
         with pytest.raises(OpenAIError, match="Failed to parse image with Vision API"):
-            parser.parse("/fake/path/test.png")
+            await parser.parse("/fake/path/test.png")
 
     @patch('backend.parsers.image_parser.settings')
     @patch('backend.parsers.image_parser.Path')
     @patch('backend.parsers.image_parser.OpenAI')
     @patch('builtins.open', side_effect=Exception("Unexpected error"))
-    def test_parse_unexpected_error(self, mock_file, mock_openai_class, mock_path_class, mock_settings):
+    @pytest.mark.asyncio
+    async def test_parse_unexpected_error(self, mock_file, mock_openai_class, mock_path_class, mock_settings):
         """Test parse raises RuntimeError on unexpected errors"""
         mock_settings.OPENAI_API_KEY = "test_key"
 
@@ -313,13 +319,14 @@ class TestImageParser:
         parser = ImageParser()
 
         with pytest.raises(RuntimeError, match="Failed to parse image"):
-            parser.parse("/fake/path/test.png")
+            await parser.parse("/fake/path/test.png")
 
     @patch('backend.parsers.image_parser.settings')
     @patch('backend.parsers.image_parser.Path')
     @patch('backend.parsers.image_parser.OpenAI')
     @patch('builtins.open', new_callable=mock_open, read_data=b'large_image_data')
-    def test_parse_large_image(self, mock_file, mock_openai_class, mock_path_class, mock_settings):
+    @pytest.mark.asyncio
+    async def test_parse_large_image(self, mock_file, mock_openai_class, mock_path_class, mock_settings):
         """Test parsing large image file"""
         mock_settings.OPENAI_API_KEY = "test_key"
 
@@ -341,7 +348,7 @@ class TestImageParser:
         mock_client.chat.completions.create.return_value = mock_response
 
         parser = ImageParser()
-        result = parser.parse("/fake/path/high_res.png")
+        result = await parser.parse("/fake/path/high_res.png")
 
         assert result["metadata"]["file_size"] == 5242880
         assert result["content"] == "High resolution image analysis"
@@ -350,7 +357,8 @@ class TestImageParser:
     @patch('backend.parsers.image_parser.Path')
     @patch('backend.parsers.image_parser.OpenAI')
     @patch('builtins.open', new_callable=mock_open, read_data=b'jpeg_data')
-    def test_parse_jpeg_file(self, mock_file, mock_openai_class, mock_path_class, mock_settings):
+    @pytest.mark.asyncio
+    async def test_parse_jpeg_file(self, mock_file, mock_openai_class, mock_path_class, mock_settings):
         """Test parsing JPEG file with correct format detection"""
         mock_settings.OPENAI_API_KEY = "test_key"
 
@@ -373,7 +381,7 @@ class TestImageParser:
         mock_client.chat.completions.create.return_value = mock_response
 
         parser = ImageParser()
-        result = parser.parse("/fake/path/photo.jpg")
+        result = await parser.parse("/fake/path/photo.jpg")
 
         assert result["metadata"]["image_format"] == "image/jpeg"
         assert "landscape" in result["content"]
@@ -382,7 +390,8 @@ class TestImageParser:
     @patch('backend.parsers.image_parser.Path')
     @patch('backend.parsers.image_parser.OpenAI')
     @patch('builtins.open', new_callable=mock_open, read_data=b'webp_data')
-    def test_parse_webp_file(self, mock_file, mock_openai_class, mock_path_class, mock_settings):
+    @pytest.mark.asyncio
+    async def test_parse_webp_file(self, mock_file, mock_openai_class, mock_path_class, mock_settings):
         """Test parsing WEBP file"""
         mock_settings.OPENAI_API_KEY = "test_key"
 
@@ -405,7 +414,7 @@ class TestImageParser:
         mock_client.chat.completions.create.return_value = mock_response
 
         parser = ImageParser()
-        result = parser.parse("/fake/path/modern.webp")
+        result = await parser.parse("/fake/path/modern.webp")
 
         assert result["metadata"]["image_format"] == "image/webp"
         assert result["content"] == "Modern format image"
