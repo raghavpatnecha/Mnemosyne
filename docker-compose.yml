@@ -1,0 +1,53 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: ankane/pgvector:latest
+    container_name: mnemosyne-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-mnemosyne}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mnemosyne_dev}
+      POSTGRES_DB: ${POSTGRES_DB:-mnemosyne}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mnemosyne"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - mnemosyne-network
+
+  # Week 2: Add Redis
+  # redis:
+  #   image: redis:7-alpine
+  #   container_name: mnemosyne-redis
+  #   ports:
+  #     - "6379:6379"
+  #   volumes:
+  #     - redis_data:/data
+  #   networks:
+  #     - mnemosyne-network
+
+  # Week 2: Add Celery worker
+  # celery-worker:
+  #   build: .
+  #   command: celery -A backend.celery_app worker --loglevel=info
+  #   depends_on:
+  #     - postgres
+  #     - redis
+  #   environment:
+  #     - DATABASE_URL=${DATABASE_URL}
+  #   networks:
+  #     - mnemosyne-network
+
+volumes:
+  postgres_data:
+  # redis_data:
+
+networks:
+  mnemosyne-network:
+    driver: bridge
