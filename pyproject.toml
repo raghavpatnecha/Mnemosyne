@@ -33,6 +33,9 @@ litellm = "^1.77.5"
 langchain-litellm = "^0.2.3"
 slowapi = "^0.1.9"
 tenacity = "^8.0.0"
+pandas = "^2.2.0"
+openpyxl = "^3.1.0"
+tabulate = "^0.9.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.0.0"
