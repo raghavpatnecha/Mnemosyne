@@ -40,5 +40,10 @@ def create_tables():
     """
     Create all tables in the database
     Called during application startup
+
+    Note: Import models here to ensure they're registered with Base.metadata
     """
+    # Import models so they're registered with Base.metadata
+    from backend.models import User, APIKey, Collection, Document  # noqa: F401
+
     Base.metadata.create_all(bind=engine)
