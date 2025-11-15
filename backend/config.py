@@ -87,6 +87,13 @@ class Settings(BaseSettings):
     RETRY_MAX_ATTEMPTS: int = 3
     RETRY_EXPONENTIAL_BASE: int = 2
 
+    # Speech-to-Text (STT) Configuration (Phase 2)
+    STT_SERVICE: str = "whisper-1"  # LiteLLM format: "whisper-1", "azure/whisper", "groq/whisper-large-v3", etc.
+    STT_SERVICE_API_KEY: str = ""  # API key for STT service (uses OPENAI_API_KEY if empty)
+    STT_SERVICE_API_BASE: str = ""  # Optional: custom API base URL for STT
+    STT_LOCAL_ENABLED: bool = False  # Enable local Faster-Whisper fallback
+    STT_LOCAL_MODEL: str = "base"  # Faster-Whisper model: tiny, base, small, medium, large
+
     class Config:
         env_file = ".env"
         case_sensitive = True
