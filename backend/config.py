@@ -100,6 +100,18 @@ class Settings(BaseSettings):
     VIDEO_TEMP_DIR: str = "/tmp/mnemosyne_video"  # Temp directory for audio extraction
     VIDEO_MAX_DURATION: int = 3600  # Max video duration in seconds (1 hour)
 
+    # LightRAG (Graph-based RAG)
+    LIGHTRAG_ENABLED: bool = True  # Enable/disable LightRAG knowledge graph
+    LIGHTRAG_WORKING_DIR: str = "./data/lightrag"  # Storage for graph data
+    LIGHTRAG_CHUNK_SIZE: int = 512  # Token size per chunk (align with Chonkie)
+    LIGHTRAG_CHUNK_OVERLAP: int = 128  # Overlap between chunks
+    LIGHTRAG_TOP_K: int = 20  # Number of entities to retrieve
+    LIGHTRAG_CHUNK_TOP_K: int = 10  # Number of chunks in context
+    LIGHTRAG_MAX_ENTITY_TOKENS: int = 6000  # Max tokens for entities
+    LIGHTRAG_MAX_RELATION_TOKENS: int = 8000  # Max tokens for relationships
+    LIGHTRAG_MAX_TOKENS: int = 30000  # Max total tokens in context
+    LIGHTRAG_DEFAULT_MODE: str = "hybrid"  # local, global, hybrid, naive
+
     class Config:
         env_file = ".env"
         case_sensitive = True
