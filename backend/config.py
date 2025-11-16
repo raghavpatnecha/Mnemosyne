@@ -94,6 +94,12 @@ class Settings(BaseSettings):
     STT_LOCAL_ENABLED: bool = False  # Enable local Faster-Whisper fallback
     STT_LOCAL_MODEL: str = "base"  # Faster-Whisper model: tiny, base, small, medium, large
 
+    # Video Processing (Phase 2)
+    VIDEO_FFMPEG_PATH: str = "ffmpeg"  # Path to ffmpeg binary
+    VIDEO_FFPROBE_PATH: str = "ffprobe"  # Path to ffprobe binary
+    VIDEO_TEMP_DIR: str = "/tmp/mnemosyne_video"  # Temp directory for audio extraction
+    VIDEO_MAX_DURATION: int = 3600  # Max video duration in seconds (1 hour)
+
     class Config:
         env_file = ".env"
         case_sensitive = True
