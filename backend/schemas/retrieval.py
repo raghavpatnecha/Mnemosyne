@@ -14,6 +14,7 @@ class RetrievalMode(str, Enum):
     SEMANTIC = "semantic"
     KEYWORD = "keyword"
     HYBRID = "hybrid"
+    HIERARCHICAL = "hierarchical"
 
 
 class RetrievalRequest(BaseModel):

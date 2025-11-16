@@ -7,6 +7,7 @@ Includes:
 - CacheService: Redis caching for performance
 - QuotaService: User quota management
 - QueryReformulationService: Query improvement
+- DocumentSummaryService: Document-level summary and embedding generation
 """
 
 # Lazy imports to avoid circular dependencies
@@ -17,5 +18,6 @@ __all__ = [
     "RerankerService",
     "CacheService",
     "QuotaService",
-    "QueryReformulationService"
+    "QueryReformulationService",
+    "DocumentSummaryService"
 ]
