@@ -220,6 +220,16 @@ class YouTubeParser:
                 "page_count": None
             }
 
+        # Validate video ID format (11 characters, alphanumeric with - and _)
+        if not re.match(r'^[a-zA-Z0-9_-]{11}$', video_id):
+            error_msg = f"Invalid YouTube video ID format: {video_id}"
+            logger.error(error_msg)
+            return {
+                "content": "",
+                "metadata": {"error": error_msg},
+                "page_count": None
+            }
+
         logger.info(f"Extracting transcript for YouTube video: {video_id}")
 
         try:
@@ -237,8 +247,11 @@ class YouTubeParser:
             full_transcript = "\n".join(transcript_lines)
 
             # Calculate duration
-            last_segment = transcript_list[-1]
-            duration = last_segment["start"] + last_segment.get("duration", 0)
+            if transcript_list:
+                last_segment = transcript_list[-1]
+                duration = last_segment["start"] + last_segment.get("duration", 0)
+            else:
+                duration = 0
 
             # Fetch metadata
             metadata = await self.fetch_video_metadata(video_id)

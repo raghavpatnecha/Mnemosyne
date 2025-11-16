@@ -276,18 +276,34 @@ class TestYouTubeParser:
 
     @pytest.mark.asyncio
     @patch('backend.parsers.youtube_parser.Path')
+    async def test_parse_invalid_video_id_format(self, mock_path_class):
+        """Test parse with invalid video ID format (wrong length)"""
+        mock_path = MagicMock()
+        mock_path.exists.return_value = True
+        mock_path.is_file.return_value = True
+        mock_path.read_text.return_value = "https://youtu.be/short123"  # Only 8 chars
+        mock_path_class.return_value = mock_path
+
+        parser = YouTubeParser()
+        result = await parser.parse("/fake/path/url.txt")
+
+        assert result["content"] == ""
+        assert "Invalid YouTube video ID format" in result["metadata"]["error"]
+
+    @pytest.mark.asyncio
+    @patch('backend.parsers.youtube_parser.Path')
     @patch('backend.parsers.youtube_parser.YouTubeTranscriptApi.get_transcript')
     async def test_parse_transcript_unavailable(self, mock_get_transcript, mock_path_class):
         """Test parse when transcript is unavailable"""
         mock_path = MagicMock()
         mock_path.exists.return_value = True
         mock_path.is_file.return_value = True
-        mock_path.read_text.return_value = "https://youtu.be/test123"
+        mock_path.read_text.return_value = "https://youtu.be/dQw4w9WgXcQ"  # Valid 11-char ID
         mock_path_class.return_value = mock_path
 
         # Mock the specific exception that would be raised
         mock_get_transcript.side_effect = Exception(
-            "\nCould not retrieve a transcript for the video https://www.youtube.com/watch?v=test123! "
+            "\nCould not retrieve a transcript for the video https://www.youtube.com/watch?v=dQw4w9WgXcQ! "
             "This is most likely caused by:\n\nSubtitles are disabled for this video"
         )
 
@@ -296,4 +312,4 @@ class TestYouTubeParser:
 
         assert result["content"] == ""
         assert "Failed to extract transcript" in result["metadata"]["error"]
-        assert result["metadata"]["video_id"] == "test123"
+        assert result["metadata"]["video_id"] == "dQw4w9WgXcQ"
