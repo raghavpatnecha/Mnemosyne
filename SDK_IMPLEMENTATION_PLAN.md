@@ -212,7 +212,7 @@ DELETE /chat/sessions/{id}
 
 ---
 
-## 3. SDK Architecture
+## 4. SDK Architecture
 
 ### Design Pattern: Resource-Based Organization (OpenAI/Anthropic Style)
 
@@ -255,7 +255,7 @@ mnemosyne-sdk/
 
 ---
 
-## 4. Core Client Design
+## 5. Core Client Design
 
 ### Base Client (shared logic)
 ```python
@@ -382,7 +382,7 @@ class AsyncClient(BaseClient):
 
 ---
 
-## 5. Resource Implementations
+## 6. Resource Implementations
 
 ### Collections Resource (example)
 ```python
@@ -552,12 +552,127 @@ class DocumentsResource:
         response = self._client.request("GET", "/documents", params=params)
         return DocumentListResponse(**response.json())
 
+    def get(self, document_id: UUID) -> DocumentResponse:
+        """Get document by ID"""
+        response = self._client.request("GET", f"/documents/{document_id}")
+        return DocumentResponse(**response.json())
+
     def get_status(self, document_id: UUID) -> DocumentStatusResponse:
         """Get document processing status"""
         response = self._client.request("GET", f"/documents/{document_id}/status")
         return DocumentStatusResponse(**response.json())
 
-    # ... (other CRUD methods)
+    def update(
+        self,
+        document_id: UUID,
+        title: Optional[str] = None,
+        metadata: Optional[Dict] = None
+    ) -> DocumentResponse:
+        """Update document metadata"""
+        from ..types.documents import DocumentUpdate
+        data = DocumentUpdate(
+            title=title,
+            metadata=metadata
+        ).dict(exclude_unset=True)
+        response = self._client.request("PATCH", f"/documents/{document_id}", json=data)
+        return DocumentResponse(**response.json())
+
+    def delete(self, document_id: UUID) -> None:
+        """Delete document"""
+        self._client.request("DELETE", f"/documents/{document_id}")
+
+
+class AsyncDocumentsResource:
+    """Async document operations"""
+
+    def __init__(self, client):
+        self._client = client
+
+    async def create(
+        self,
+        collection_id: UUID,
+        file: Union[str, Path, BinaryIO],
+        metadata: Optional[Dict] = None
+    ) -> DocumentResponse:
+        """Upload a document asynchronously"""
+        import json
+
+        # Handle file input
+        if isinstance(file, (str, Path)):
+            file_obj = open(file, "rb")
+            filename = Path(file).name
+            close_file = True
+        else:
+            file_obj = file
+            filename = getattr(file, "name", "file")
+            close_file = False
+
+        try:
+            files = {"file": (filename, file_obj)}
+            data = {
+                "collection_id": str(collection_id),
+                "metadata": json.dumps(metadata or {})
+            }
+
+            # Use async multipart/form-data
+            response = await self._client._http_client.post(
+                "/documents",
+                files=files,
+                data=data
+            )
+            self._client._handle_error(response)
+            return DocumentResponse(**response.json())
+        finally:
+            if close_file:
+                file_obj.close()
+
+    async def list(
+        self,
+        collection_id: UUID,
+        limit: int = 20,
+        offset: int = 0,
+        status_filter: Optional[str] = None
+    ) -> DocumentListResponse:
+        """List documents in collection"""
+        params = {
+            "collection_id": str(collection_id),
+            "limit": limit,
+            "offset": offset
+        }
+        if status_filter:
+            params["status_filter"] = status_filter
+
+        response = await self._client.request("GET", "/documents", params=params)
+        return DocumentListResponse(**response.json())
+
+    async def get(self, document_id: UUID) -> DocumentResponse:
+        """Get document by ID"""
+        response = await self._client.request("GET", f"/documents/{document_id}")
+        return DocumentResponse(**response.json())
+
+    async def get_status(self, document_id: UUID) -> DocumentStatusResponse:
+        """Get document processing status"""
+        response = await self._client.request("GET", f"/documents/{document_id}/status")
+        return DocumentStatusResponse(**response.json())
+
+    async def update(
+        self,
+        document_id: UUID,
+        title: Optional[str] = None,
+        metadata: Optional[Dict] = None
+    ) -> DocumentResponse:
+        """Update document metadata"""
+        from ..types.documents import DocumentUpdate
+        data = DocumentUpdate(
+            title=title,
+            metadata=metadata
+        ).dict(exclude_unset=True)
+        response = await self._client.request("PATCH", f"/documents/{document_id}", json=data)
+        return DocumentResponse(**response.json())
+
+    async def delete(self, document_id: UUID) -> None:
+        """Delete document"""
+        await self._client.request("DELETE", f"/documents/{document_id}")
 ```
 
 ### Retrievals Resource (supports 5 modes)
@@ -611,11 +726,20 @@ class ChatResource:
 
     def list_sessions(self, limit: int = 20, offset: int = 0):
         """List chat sessions"""
+        from ..types.chat import ChatSessionResponse
         params = {"limit": limit, "offset": offset}
         response = self._client.request("GET", "/chat/sessions", params=params)
         return [ChatSessionResponse(**s) for s in response.json()]
 
-    # ... other methods
+    def get_session_messages(self, session_id: UUID):
+        """Get all messages in a chat session"""
+        from ..types.chat import ChatMessageResponse
+        response = self._client.request("GET", f"/chat/sessions/{session_id}/messages")
+        return [ChatMessageResponse(**m) for m in response.json()]
+
+    def delete_session(self, session_id: UUID) -> None:
+        """Delete a chat session"""
+        self._client.request("DELETE", f"/chat/sessions/{session_id}")
 
 
 class AsyncChatResource:
@@ -651,14 +775,25 @@ class AsyncChatResource:
 
     async def list_sessions(self, limit: int = 20, offset: int = 0):
         """List chat sessions"""
+        from ..types.chat import ChatSessionResponse
         params = {"limit": limit, "offset": offset}
         response = await self._client.request("GET", "/chat/sessions", params=params)
         return [ChatSessionResponse(**s) for s in response.json()]
+
+    async def get_session_messages(self, session_id: UUID):
+        """Get all messages in a chat session"""
+        from ..types.chat import ChatMessageResponse
+        response = await self._client.request("GET", f"/chat/sessions/{session_id}/messages")
+        return [ChatMessageResponse(**m) for m in response.json()]
+
+    async def delete_session(self, session_id: UUID) -> None:
+        """Delete a chat session"""
+        await self._client.request("DELETE", f"/chat/sessions/{session_id}")
 ```
 
 ---
 
-## 6. Type System (Pydantic Models)
+## 7. Type System (Pydantic Models)
 
 All request/response schemas will mirror the backend schemas:
 
@@ -697,9 +832,280 @@ class CollectionListResponse(BaseModel):
     pagination: Dict
 ```
 
+### Documents Types
+
+```python
+# mnemosyne/types/documents.py
+from pydantic import BaseModel, Field
+from typing import Optional, Dict, List
+from datetime import datetime
+from uuid import UUID
+
+class DocumentUpdate(BaseModel):
+    """Schema for updating document metadata"""
+    title: Optional[str] = Field(None, max_length=512)
+    metadata: Optional[Dict] = None
+
+class DocumentResponse(BaseModel):
+    """Schema for document responses"""
+    id: UUID
+    collection_id: UUID
+    user_id: UUID
+    title: Optional[str]
+    filename: Optional[str]
+    content_type: Optional[str]
+    size_bytes: Optional[int]
+    content_hash: str
+    unique_identifier_hash: Optional[str]
+    status: str
+    metadata: Dict = Field(default_factory=dict, alias="metadata_")
+    processing_info: Dict = Field(default_factory=dict)
+    created_at: datetime
+    updated_at: Optional[datetime]
+
+    class Config:
+        populate_by_name = True  # Allow both 'metadata' and 'metadata_'
+
+class DocumentListResponse(BaseModel):
+    """Schema for paginated list of documents"""
+    data: List[DocumentResponse]
+    pagination: Dict
+
+class DocumentStatusResponse(BaseModel):
+    """Schema for document processing status"""
+    document_id: UUID
+    status: str
+    chunk_count: int = 0
+    total_tokens: int = 0
+    error_message: Optional[str] = None
+    processing_info: Dict = Field(default_factory=dict)
+    created_at: datetime
+    processed_at: Optional[datetime] = None
+```
+
+### Retrievals Types
+
+```python
+# mnemosyne/types/retrievals.py
+from pydantic import BaseModel, Field
+from typing import Optional, Dict, List, Literal
+from uuid import UUID
+
+RetrievalMode = Literal["semantic", "keyword", "hybrid", "hierarchical", "graph"]
+
+class RetrievalRequest(BaseModel):
+    """Request schema for retrieval endpoint"""
+    query: str = Field(..., min_length=1, max_length=2000)
+    mode: RetrievalMode = "hybrid"
+    top_k: int = Field(default=10, ge=1, le=50)
+    collection_id: Optional[UUID] = None
+    metadata_filter: Optional[Dict] = None
+
+class DocumentInfo(BaseModel):
+    """Document information in chunk result"""
+    id: str
+    title: Optional[str]
+    filename: Optional[str]
+
+class ChunkResult(BaseModel):
+    """Single chunk result"""
+    chunk_id: str
+    content: str
+    chunk_index: int
+    score: float
+    metadata: Dict = Field(default_factory=dict)
+    chunk_metadata: Dict = Field(default_factory=dict)
+    document: DocumentInfo
+    collection_id: str
+
+class RetrievalResponse(BaseModel):
+    """Response schema for retrieval endpoint"""
+    results: List[ChunkResult]
+    query: str
+    mode: str
+    total_results: int
+```
+
+### Chat Types
+
+```python
+# mnemosyne/types/chat.py
+from pydantic import BaseModel, Field
+from typing import Optional, List
+from uuid import UUID
+from datetime import datetime
+
+class ChatRequest(BaseModel):
+    """Request schema for chat endpoint"""
+    session_id: Optional[UUID] = None
+    message: str = Field(..., min_length=1, max_length=2000)
+    collection_id: Optional[UUID] = None
+    top_k: int = Field(default=5, ge=1, le=20)
+    stream: bool = True
+
+class ChatSessionResponse(BaseModel):
+    """Chat session metadata"""
+    id: UUID
+    user_id: UUID
+    collection_id: Optional[UUID]
+    title: Optional[str]
+    created_at: datetime
+    last_message_at: Optional[datetime]
+    message_count: int
+
+    class Config:
+        from_attributes = True
+
+class ChatMessageResponse(BaseModel):
+    """Chat message response"""
+    id: UUID
+    session_id: UUID
+    role: str
+    content: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+```
+
 ---
 
-## 7. Streaming Support (SSE)
+## 7A. Package Structure (__init__.py Files)
+
+### Main Package Init
+
+```python
+# mnemosyne/__init__.py
+"""Mnemosyne Python SDK
+
+A modern Python SDK for interacting with the Mnemosyne RAG API.
+
+Usage:
+    from mnemosyne import Client, AsyncClient
+
+    # Sync client
+    client = Client(api_key="mn_your_key")
+    collection = client.collections.create(name="Docs")
+
+    # Async client
+    async with AsyncClient(api_key="mn_your_key") as client:
+        collection = await client.collections.create(name="Docs")
+"""
+
+from .client import Client
+from .async_client import AsyncClient
+from .exceptions import (
+    MnemosyneError,
+    AuthenticationError,
+    RateLimitError,
+    NotFoundError,
+    ValidationError,
+    APIError
+)
+from .version import __version__
+
+__all__ = [
+    "Client",
+    "AsyncClient",
+    "MnemosyneError",
+    "AuthenticationError",
+    "RateLimitError",
+    "NotFoundError",
+    "ValidationError",
+    "APIError",
+    "__version__",
+]
+```
+
+### Resources Init
+
+```python
+# mnemosyne/resources/__init__.py
+"""Resource modules for API endpoints"""
+
+from .collections import CollectionsResource, AsyncCollectionsResource
+from .documents import DocumentsResource, AsyncDocumentsResource
+from .retrievals import RetrievalsResource
+from .chat import ChatResource, AsyncChatResource
+
+__all__ = [
+    "CollectionsResource",
+    "AsyncCollectionsResource",
+    "DocumentsResource",
+    "AsyncDocumentsResource",
+    "RetrievalsResource",
+    "ChatResource",
+    "AsyncChatResource",
+]
+```
+
+### Types Init
+
+```python
+# mnemosyne/types/__init__.py
+"""Type definitions for SDK"""
+
+from .collections import (
+    CollectionCreate,
+    CollectionUpdate,
+    CollectionResponse,
+    CollectionListResponse
+)
+from .documents import (
+    DocumentUpdate,
+    DocumentResponse,
+    DocumentListResponse,
+    DocumentStatusResponse
+)
+from .retrievals import (
+    RetrievalMode,
+    RetrievalRequest,
+    RetrievalResponse,
+    ChunkResult,
+    DocumentInfo
+)
+from .chat import (
+    ChatRequest,
+    ChatSessionResponse,
+    ChatMessageResponse
+)
+
+__all__ = [
+    # Collections
+    "CollectionCreate",
+    "CollectionUpdate",
+    "CollectionResponse",
+    "CollectionListResponse",
+    # Documents
+    "DocumentUpdate",
+    "DocumentResponse",
+    "DocumentListResponse",
+    "DocumentStatusResponse",
+    # Retrievals
+    "RetrievalMode",
+    "RetrievalRequest",
+    "RetrievalResponse",
+    "ChunkResult",
+    "DocumentInfo",
+    # Chat
+    "ChatRequest",
+    "ChatSessionResponse",
+    "ChatMessageResponse",
+]
+```
+
+### Version File
+
+```python
+# mnemosyne/version.py
+"""SDK version"""
+
+__version__ = "0.1.0"
+```
+
+---
+
+## 8. Streaming Support (SSE)
 
 ```python
 # mnemosyne/streaming.py
@@ -721,7 +1127,7 @@ async def parse_sse_stream(response: httpx.Response) -> AsyncIterator[Dict]:
 
 ---
 
-## 8. Error Handling
+## 9. Error Handling
 
 ```python
 # mnemosyne/exceptions.py
@@ -756,7 +1162,7 @@ class APIError(MnemosyneError):
 
 ---
 
-## 9. Examples
+## 10. Examples
 
 ### Example 1: Document Ingestion Workflow (Full Lifecycle)
 
@@ -1288,7 +1694,7 @@ if __name__ == "__main__":
 
 ---
 
-## 10. Implementation Timeline
+## 11. Implementation Timeline
 
 ### Phase 1: Core SDK (Week 1)
 - [ ] Project setup (Poetry, directory structure)
@@ -1325,34 +1731,165 @@ if __name__ == "__main__":
 
 ---
 
-## 11. Dependencies
+## 12. Dependencies and pyproject.toml
 
-### Core Dependencies
+### Complete pyproject.toml
+
 ```toml
+[tool.poetry]
+name = "mnemosyne-sdk"
+version = "0.1.0"
+description = "Python SDK for Mnemosyne RAG API - modern, type-safe, async-ready"
+authors = ["Mnemosyne Team <team@mnemosyne.dev>"]
+readme = "README.md"
+license = "MIT"
+homepage = "https://github.com/your-org/mnemosyne-sdk"
+repository = "https://github.com/your-org/mnemosyne-sdk"
+documentation = "https://mnemosyne-sdk.readthedocs.io"
+keywords = ["rag", "retrieval", "llm", "ai", "search", "sdk"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+packages = [{include = "mnemosyne"}]
+
 [tool.poetry.dependencies]
 python = "^3.9"
-httpx = "^0.25.0"        # HTTP client with sync/async support
-pydantic = "^2.5.0"      # Type validation
-typing-extensions = "^4.8.0"  # Type hints for older Python
+httpx = "^0.25.0"                    # HTTP client with sync/async support
+pydantic = "^2.5.0"                  # Type validation and serialization
+typing-extensions = {version = "^4.8.0", python = "<3.11"}  # Backport typing features
 
 [tool.poetry.group.dev.dependencies]
-pytest = "^7.4.0"
-pytest-asyncio = "^0.21.0"
-pytest-httpx = "^0.26.0"  # Mock httpx requests
-black = "^23.0.0"
-mypy = "^1.7.0"
-```
+pytest = "^7.4.0"                    # Testing framework
+pytest-asyncio = "^0.21.0"           # Async test support
+pytest-httpx = "^0.26.0"             # Mock httpx requests
+pytest-cov = "^4.1.0"                # Code coverage
+black = "^23.0.0"                    # Code formatter
+ruff = "^0.1.0"                      # Fast linter
+mypy = "^1.7.0"                      # Static type checker
+pre-commit = "^3.5.0"                # Git hooks
 
-### Optional Dependencies (for examples)
-```toml
+[tool.poetry.group.docs.dependencies]
+mkdocs = "^1.5.0"                    # Documentation generator
+mkdocs-material = "^9.4.0"           # Material theme
+mkdocstrings = {extras = ["python"], version = "^0.24.0"}  # API docs
+
 [tool.poetry.group.examples.dependencies]
-langchain = "^0.1.0"
-openai = "^1.0.0"
+langchain = "^0.1.0"                 # LangChain integration example
+openai = "^1.0.0"                    # LLM for examples
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+# Black formatter configuration
+[tool.black]
+line-length = 100
+target-version = ['py39', 'py310', 'py311']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+)/
+'''
+
+# Ruff linter configuration
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+]
+ignore = [
+    "E501",  # line too long (handled by black)
+    "B008",  # do not perform function calls in argument defaults
+    "C901",  # too complex
+]
+
+[tool.ruff.per-file-ignores]
+"__init__.py" = ["F401"]  # Unused imports in __init__.py
+
+# MyPy type checker configuration
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+strict_equality = true
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_defs = false
+
+# Pytest configuration
+[tool.pytest.ini_options]
+minversion = "7.0"
+addopts = [
+    "--strict-markers",
+    "--cov=mnemosyne",
+    "--cov-report=term-missing",
+    "--cov-report=html",
+    "--cov-report=xml",
+]
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+asyncio_mode = "auto"
+
+# Coverage configuration
+[tool.coverage.run]
+branch = true
+source = ["mnemosyne"]
+omit = [
+    "*/tests/*",
+    "*/test_*.py",
+]
+
+[tool.coverage.report]
+precision = 2
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "@abstractmethod",
+]
 ```
 
 ---
 
-## 12. Testing Strategy
+## 13. Testing Strategy
 
 ### Unit Tests
 - Mock all HTTP requests (pytest-httpx)
@@ -1373,7 +1910,7 @@ openai = "^1.0.0"
 
 ---
 
-## 13. Documentation Plan
+## 14. Documentation Plan
 
 ### README.md
 - Installation instructions
@@ -1400,7 +1937,7 @@ openai = "^1.0.0"
 
 ---
 
-## 14. Key Decisions
+## 15. Key Decisions
 
 ### Why httpx over requests?
 - Native async/await support
@@ -1427,7 +1964,7 @@ openai = "^1.0.0"
 
 ---
 
-## 15. Success Criteria
+## 16. Success Criteria
 
 ### Minimum Viable SDK (MVP)
 - [ ] Sync and async clients working
@@ -1452,7 +1989,7 @@ openai = "^1.0.0"
 
 ---
 
-## 16. Future Enhancements (Post v1.0)
+## 17. Future Enhancements (Post v1.0)
 
 ### v1.1
 - Pagination helpers (auto-fetch all pages)
@@ -1471,7 +2008,7 @@ openai = "^1.0.0"
 
 ---
 
-## 17. Open Questions
+## 18. Open Questions
 
 1. **Versioning**: Follow Mnemosyne API version or independent versioning?
    - **Recommendation**: Independent semantic versioning (SDK can evolve faster)
