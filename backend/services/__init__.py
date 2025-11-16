@@ -8,6 +8,7 @@ Includes:
 - QuotaService: User quota management
 - QueryReformulationService: Query improvement
 - DocumentSummaryService: Document-level summary and embedding generation
+- LightRAGService: Graph-based RAG with entity extraction
 """
 
 # Lazy imports to avoid circular dependencies
@@ -19,5 +20,6 @@ __all__ = [
     "CacheService",
     "QuotaService",
     "QueryReformulationService",
-    "DocumentSummaryService"
+    "DocumentSummaryService",
+    "LightRAGService"
 ]

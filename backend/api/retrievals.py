@@ -20,6 +20,8 @@ from backend.schemas.retrieval import (
 from backend.search.vector_search import VectorSearchService
 from backend.search.hierarchical_search import HierarchicalSearchService
 from backend.embeddings.openai_embedder import OpenAIEmbedder
+from backend.services.lightrag_service import get_lightrag_service
+from backend.config import settings
 from backend.core.exceptions import http_400_bad_request
 
 router = APIRouter(prefix="/retrievals", tags=["retrievals"])
@@ -34,11 +36,12 @@ async def retrieve(
     """
     Retrieve relevant chunks for a query
 
-    Supports four search modes:
+    Supports five search modes:
     - semantic: Vector similarity search only
     - keyword: Full-text search only
     - hybrid: Both searches merged with RRF
     - hierarchical: Two-tier search (document → chunk)
+    - graph: LightRAG graph-based retrieval (entity + relationship)
 
     Args:
         request: Retrieval request (query, mode, top_k, etc.)
@@ -99,6 +102,35 @@ async def retrieve(
             collection_id=request.collection_id,
             top_k=request.top_k
         )
+    elif request.mode == RetrievalMode.GRAPH:
+        # LightRAG graph-based retrieval
+        if not settings.LIGHTRAG_ENABLED:
+            raise http_400_bad_request("LightRAG is not enabled")
+
+        lightrag = get_lightrag_service()
+        graph_result = await lightrag.query(
+            query_text=request.query,
+            mode=settings.LIGHTRAG_DEFAULT_MODE,  # hybrid, local, or global
+            top_k=request.top_k
+        )
+
+        # Convert LightRAG context to chunk results
+        # Note: LightRAG returns context string, not structured chunks
+        # This is a simplified implementation - you may want to enhance this
+        results = [{
+            'chunk_id': 'graph_result',
+            'content': graph_result['context'],
+            'chunk_index': 0,
+            'score': 1.0,
+            'metadata': {'mode': graph_result['mode']},
+            'chunk_metadata': {},
+            'document': {
+                'id': 'lightrag',
+                'title': 'Knowledge Graph Results',
+                'filename': 'graph'
+            },
+            'collection_id': str(request.collection_id) if request.collection_id else 'all'
+        }]
     else:
         raise http_400_bad_request(f"Invalid mode: {request.mode}")
 
