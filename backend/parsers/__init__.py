@@ -8,6 +8,8 @@ from backend.parsers.text_parser import TextParser
 from backend.parsers.audio_parser import AudioParser
 from backend.parsers.excel_parser import ExcelParser
 from backend.parsers.image_parser import ImageParser
+from backend.parsers.youtube_parser import YouTubeParser
+from backend.parsers.video_parser import VideoParser
 
 
 class ParserFactory:
@@ -16,6 +18,8 @@ class ParserFactory:
     def __init__(self):
         self.parsers = [
             DoclingParser(),
+            YouTubeParser(),    # YouTube URLs (must be before VideoParser)
+            VideoParser(),      # Video files (MP4, AVI, MOV, WEBM)
             AudioParser(),
             ExcelParser(),
             ImageParser(),
@@ -42,4 +46,13 @@ class ParserFactory:
         raise ValueError(f"No parser available for content type: {content_type}")
 
 
-__all__ = ["ParserFactory", "DoclingParser", "TextParser", "AudioParser", "ExcelParser", "ImageParser"]
+__all__ = [
+    "ParserFactory",
+    "DoclingParser",
+    "TextParser",
+    "AudioParser",
+    "ExcelParser",
+    "ImageParser",
+    "YouTubeParser",
+    "VideoParser",
+]
