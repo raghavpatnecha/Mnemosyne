@@ -12,17 +12,96 @@
 Provide developers with an easy-to-use Python SDK for interacting with the Mnemosyne RAG API, following modern SDK patterns used by OpenAI, Anthropic, and Stripe.
 
 ### Key Features
+
+**Full Document Lifecycle:**
+- **Collection management**: Create, list, update, delete collections
+- **Document ingestion**: Upload PDFs, DOCX, YouTube videos, MP4s
+- **Batch upload**: Efficiently upload multiple documents
+- **Processing monitoring**: Real-time status tracking with chunk/token counts
+- **Metadata management**: Rich metadata for organization and filtering
+
+**Advanced Retrieval:**
+- **5 search modes**: Semantic, keyword, hybrid, hierarchical, graph (LightRAG)
+- **Metadata filtering**: Search within specific document types/categories
+- **Conversational chat**: RAG-powered chat with SSE streaming
+
+**Developer Experience:**
 - **Dual client architecture**: Sync (`Client`) and async (`AsyncClient`)
 - **Resource-based organization**: `client.collections.create()`, `client.documents.list()`, etc.
 - **Full type hints**: Complete type safety with Pydantic models
-- **Streaming support**: SSE streaming for chat endpoint
 - **Error handling**: Custom exceptions with helpful error messages
 - **Automatic retries**: Configurable retry logic for network failures
 - **LangChain integration**: First-class support via custom retriever
 
 ---
 
-## 2. Current API Analysis
+## 2. Full Workflow: Ingestion → Retrieval
+
+### Quick Example: End-to-End Usage
+
+```python
+from mnemosyne import Client
+
+client = Client(api_key="mn_your_api_key")
+
+# ============================================================================
+# INGESTION: Build your knowledge base
+# ============================================================================
+
+# 1. Create collection
+collection = client.collections.create(
+    name="AI Research",
+    metadata={"domain": "machine_learning"}
+)
+
+# 2. Upload documents (PDFs, DOCX, YouTube, MP4)
+doc = client.documents.create(
+    collection_id=collection.id,
+    file="research_paper.pdf",
+    metadata={"year": 2024, "authors": ["Smith et al."]}
+)
+
+# 3. Monitor processing
+import time
+while client.documents.get_status(doc.id).status != "completed":
+    time.sleep(2)
+
+print(f"✓ Document processed: {doc.title}")
+
+# ============================================================================
+# RETRIEVAL: Search your knowledge base
+# ============================================================================
+
+# 4. Semantic search
+results = client.retrievals.search(
+    query="What is the transformer architecture?",
+    mode="hybrid",  # semantic + keyword
+    top_k=5,
+    collection_id=collection.id
+)
+
+for chunk in results.results:
+    print(f"[{chunk.score:.3f}] {chunk.content[:200]}...")
+
+# 5. Conversational chat (requires async)
+# See async examples for streaming chat
+
+client.close()
+```
+
+### Supported Content Types
+
+| Type | Extension | Ingestion Method | Processing |
+|------|-----------|------------------|------------|
+| **PDF** | `.pdf` | File upload | Text extraction + chunking |
+| **Word** | `.docx` | File upload | Text extraction + chunking |
+| **YouTube** | URL | YouTube URL | Transcription + chunking |
+| **Video** | `.mp4` | File upload | Transcription + chunking |
+| **Text** | `.txt`, `.md` | File upload | Direct chunking |
+
+---
+
+## 3. Current API Analysis
 
 ### Implemented Endpoints (17 total)
 
@@ -160,10 +239,12 @@ mnemosyne-sdk/
 │   ├── streaming.py          # SSE streaming utilities
 │   └── version.py            # Version string
 ├── examples/
-│   ├── basic_usage.py        # Normal example
-│   ├── langchain_integration.py  # LangChain example
-│   ├── async_example.py      # Async client example
-│   └── streaming_chat.py     # SSE streaming example
+│   ├── ingestion_workflow.py     # Document ingestion (CORE)
+│   ├── basic_usage.py            # Retrieval and search
+│   ├── video_ingestion.py        # YouTube + MP4 videos
+│   ├── async_example.py          # Async client example
+│   ├── streaming_chat.py         # SSE streaming example
+│   └── langchain_integration.py  # LangChain retriever
 ├── tests/
 │   ├── unit/
 │   └── integration/
@@ -677,49 +758,242 @@ class APIError(MnemosyneError):
 
 ## 9. Examples
 
-### Example 1: Basic Usage (Normal SDK)
+### Example 1: Document Ingestion Workflow (Full Lifecycle)
 
 ```python
-# examples/basic_usage.py
+# examples/ingestion_workflow.py
 """
-Basic Mnemosyne SDK usage example
-Demonstrates core functionality: collections, documents, retrieval, chat
+Complete document ingestion workflow
+Demonstrates: collection creation, batch upload, processing monitoring, metadata management
 """
 
 from mnemosyne import Client
-from uuid import UUID
+from pathlib import Path
+import time
 
 # Initialize client
 client = Client(api_key="mn_your_api_key_here")
 
-# 1. Create a collection
-print("Creating collection...")
+print("=" * 60)
+print("MNEMOSYNE DOCUMENT INGESTION WORKFLOW")
+print("=" * 60)
+
+# ============================================================================
+# STEP 1: Create a Collection (organize your knowledge base)
+# ============================================================================
+print("\n[1/5] Creating collection...")
 collection = client.collections.create(
-    name="Research Papers",
-    description="AI and ML research papers",
-    metadata={"topic": "machine_learning"}
+    name="AI Research Papers 2024",
+    description="Latest papers on LLMs, RAG, and transformers",
+    metadata={
+        "domain": "machine_learning",
+        "year": 2024,
+        "tags": ["llm", "rag", "transformers"]
+    },
+    config={
+        "embedding_model": "text-embedding-3-small",
+        "chunk_size": 512,
+        "chunk_overlap": 128
+    }
 )
-print(f"Created collection: {collection.id}")
+print(f"✓ Collection created: {collection.name}")
+print(f"  ID: {collection.id}")
+print(f"  Metadata: {collection.metadata}")
 
-# 2. Upload documents
-print("\nUploading documents...")
-doc1 = client.documents.create(
+# ============================================================================
+# STEP 2: Batch Upload Documents (multiple file types)
+# ============================================================================
+print("\n[2/5] Uploading documents...")
+
+# Define documents to upload
+documents_to_upload = [
+    {
+        "file": "papers/attention_is_all_you_need.pdf",
+        "metadata": {
+            "title": "Attention Is All You Need",
+            "year": 2017,
+            "authors": ["Vaswani et al."],
+            "venue": "NeurIPS",
+            "type": "research_paper"
+        }
+    },
+    {
+        "file": "papers/rag_paper.pdf",
+        "metadata": {
+            "title": "Retrieval-Augmented Generation",
+            "year": 2020,
+            "authors": ["Lewis et al."],
+            "venue": "NeurIPS",
+            "type": "research_paper"
+        }
+    },
+    {
+        "file": "reports/quarterly_analysis.docx",
+        "metadata": {
+            "title": "Q4 2024 AI Analysis",
+            "department": "Research",
+            "type": "internal_report"
+        }
+    }
+]
+
+# Upload all documents
+uploaded_docs = []
+for i, doc_info in enumerate(documents_to_upload, 1):
+    print(f"\n  Uploading {i}/{len(documents_to_upload)}: {doc_info['file']}")
+
+    doc = client.documents.create(
+        collection_id=collection.id,
+        file=doc_info["file"],
+        metadata=doc_info["metadata"]
+    )
+
+    uploaded_docs.append(doc)
+    print(f"  ✓ Uploaded: {doc.title}")
+    print(f"    Document ID: {doc.id}")
+    print(f"    Size: {doc.size_bytes / 1024:.1f} KB")
+    print(f"    Status: {doc.status}")
+    print(f"    Content Type: {doc.content_type}")
+
+# ============================================================================
+# STEP 3: Monitor Processing Status (wait for completion)
+# ============================================================================
+print("\n[3/5] Monitoring document processing...")
+
+def wait_for_processing(client, doc_ids, check_interval=3):
+    """Poll processing status until all documents are completed"""
+    pending = set(doc_ids)
+
+    while pending:
+        time.sleep(check_interval)
+
+        for doc_id in list(pending):
+            status = client.documents.get_status(doc_id)
+
+            if status.status == "completed":
+                print(f"  ✓ {status.document_id}: COMPLETED")
+                print(f"    - Chunks: {status.chunk_count}")
+                print(f"    - Tokens: {status.total_tokens:,}")
+                print(f"    - Processing time: {(status.processed_at - status.created_at).total_seconds():.1f}s")
+                pending.remove(doc_id)
+
+            elif status.status == "failed":
+                print(f"  ✗ {status.document_id}: FAILED")
+                print(f"    Error: {status.error_message}")
+                pending.remove(doc_id)
+
+            elif status.status == "processing":
+                print(f"  ⏳ {status.document_id}: Processing... ({status.chunk_count} chunks so far)")
+
+    print("\n  All documents processed!")
+
+doc_ids = [doc.id for doc in uploaded_docs]
+wait_for_processing(client, doc_ids)
+
+# ============================================================================
+# STEP 4: Verify Ingestion (check collection stats)
+# ============================================================================
+print("\n[4/5] Verifying ingestion...")
+
+# Refresh collection to get updated document count
+collection = client.collections.get(collection.id)
+print(f"  Collection: {collection.name}")
+print(f"  Total documents: {collection.document_count}")
+
+# List all documents in collection
+docs_list = client.documents.list(
     collection_id=collection.id,
-    file="papers/attention_is_all_you_need.pdf",
-    metadata={"year": 2017, "authors": ["Vaswani et al."]}
+    status_filter="completed"
 )
-print(f"Uploaded document: {doc1.id} (status: {doc1.status})")
 
-# Wait for processing
-import time
-while True:
-    status = client.documents.get_status(doc1.id)
-    print(f"Processing status: {status.status} ({status.chunk_count} chunks)")
-    if status.status == "completed":
-        break
-    time.sleep(2)
+print(f"\n  Documents ready for retrieval:")
+total_chunks = 0
+total_tokens = 0
 
-# 3. Search with different modes
+for doc in docs_list.data:
+    status = client.documents.get_status(doc.id)
+    total_chunks += status.chunk_count
+    total_tokens += status.total_tokens
+
+    print(f"    - {doc.title}")
+    print(f"      Chunks: {status.chunk_count}, Tokens: {status.total_tokens:,}")
+
+print(f"\n  Totals:")
+print(f"    Documents: {len(docs_list.data)}")
+print(f"    Chunks: {total_chunks}")
+print(f"    Tokens: {total_tokens:,}")
+
+# ============================================================================
+# STEP 5: Update Metadata (optional - add tags, update info)
+# ============================================================================
+print("\n[5/5] Updating metadata...")
+
+# Update collection with processing stats
+client.collections.update(
+    collection_id=collection.id,
+    metadata={
+        **collection.metadata,
+        "total_chunks": total_chunks,
+        "total_tokens": total_tokens,
+        "last_updated": time.strftime("%Y-%m-%d %H:%M:%S")
+    }
+)
+print("  ✓ Collection metadata updated")
+
+# Update individual document metadata
+doc = uploaded_docs[0]
+client.documents.update(
+    document_id=doc.id,
+    metadata={
+        **doc.metadata,
+        "processed": True,
+        "indexed_at": time.strftime("%Y-%m-%d %H:%M:%S")
+    }
+)
+print("  ✓ Document metadata updated")
+
+# ============================================================================
+# SUCCESS! Collection is ready for retrieval
+# ============================================================================
+print("\n" + "=" * 60)
+print("✓ INGESTION COMPLETE - Collection ready for search!")
+print("=" * 60)
+print(f"\nCollection ID: {collection.id}")
+print(f"Documents indexed: {collection.document_count}")
+print(f"Total chunks: {total_chunks}")
+print("\nYou can now:")
+print("  - Search: client.retrievals.search(query='...', collection_id=collection.id)")
+print("  - Chat: client.chat.chat(message='...', collection_id=collection.id)")
+print("  - Manage: client.documents.list(), update(), delete()")
+
+client.close()
+```
+
+### Example 2: Basic Usage (Retrieval & Search)
+
+```python
+# examples/basic_usage.py
+"""
+Basic retrieval and search example
+Assumes you've already ingested documents (see ingestion_workflow.py)
+"""
+
+from mnemosyne import Client
+
+# Initialize client
+client = Client(api_key="mn_your_api_key_here")
+
+# Get existing collection
+collections = client.collections.list()
+collection = collections.data[0]  # Use first collection
+
+print(f"Searching in collection: {collection.name}")
+
+# ============================================================================
+# Search with Different Modes
+# ============================================================================
+
+# 1. Semantic Search (vector similarity)
 print("\n--- Semantic Search ---")
 results = client.retrievals.search(
     query="What is the transformer architecture?",
@@ -728,47 +1002,128 @@ results = client.retrievals.search(
     collection_id=collection.id
 )
 for i, chunk in enumerate(results.results, 1):
-    print(f"{i}. [Score: {chunk.score:.3f}] {chunk.content[:100]}...")
+    print(f"{i}. [Score: {chunk.score:.3f}] {chunk.document.title}")
+    print(f"   {chunk.content[:150]}...")
 
-print("\n--- Hybrid Search (Vector + Keyword) ---")
+# 2. Hybrid Search (vector + keyword with RRF)
+print("\n--- Hybrid Search ---")
 results = client.retrievals.search(
-    query="attention mechanism",
+    query="attention mechanism self-attention",
     mode="hybrid",
-    top_k=5
+    top_k=5,
+    collection_id=collection.id
 )
 print(f"Found {results.total_results} results")
 
+# 3. Hierarchical Search (document-level then chunk-level)
+print("\n--- Hierarchical Search ---")
+results = client.retrievals.search(
+    query="How does RAG work?",
+    mode="hierarchical",
+    top_k=10
+)
+for chunk in results.results[:3]:
+    print(f"  - {chunk.document.title}: {chunk.content[:100]}...")
+
+# 4. Graph Search (LightRAG - entity + relationship aware)
 print("\n--- Graph Search (LightRAG) ---")
 results = client.retrievals.search(
-    query="Who proposed the transformer model?",
+    query="Who proposed the transformer model and when?",
     mode="graph",
     top_k=10
 )
 print(results.results[0].content)
 
-# 4. Conversational chat (async required for streaming)
-# See async_example.py for streaming chat
-
-# 5. List and manage resources
-print("\n--- Collections ---")
-collections = client.collections.list(limit=10)
-print(f"Total collections: {collections.pagination['total']}")
-for col in collections.data:
-    print(f"  - {col.name}: {col.document_count} documents")
-
-# 6. Update metadata
-client.collections.update(
-    collection_id=collection.id,
-    metadata={"topic": "machine_learning", "updated": True}
+# 5. Metadata Filtering
+print("\n--- Filtered Search ---")
+results = client.retrievals.search(
+    query="machine learning advancements",
+    mode="hybrid",
+    top_k=5,
+    metadata_filter={"year": 2024, "type": "research_paper"}
 )
+print(f"Found {results.total_results} results from 2024 research papers")
 
-# 7. Cleanup
-client.documents.delete(doc1.id)
-client.collections.delete(collection.id)
 client.close()
 ```
 
-### Example 2: Async Client with Streaming
+### Example 3: YouTube & Video Ingestion
+
+```python
+# examples/video_ingestion.py
+"""
+YouTube and MP4 video ingestion example
+Demonstrates video processing capabilities
+"""
+
+from mnemosyne import Client
+
+client = Client(api_key="mn_your_api_key_here")
+
+# Create collection for video content
+collection = client.collections.create(
+    name="Video Tutorials",
+    description="Educational videos on AI and ML"
+)
+
+# ============================================================================
+# YouTube Video Ingestion
+# ============================================================================
+print("Ingesting YouTube video...")
+
+# Option 1: Using YouTube URL directly (if backend supports it)
+youtube_doc = client.documents.create(
+    collection_id=collection.id,
+    file="https://www.youtube.com/watch?v=video_id",  # YouTube URL
+    metadata={
+        "source": "youtube",
+        "title": "Introduction to Transformers",
+        "channel": "AI Explained",
+        "duration_seconds": 1200
+    }
+)
+
+# Option 2: Upload downloaded MP4 file
+mp4_doc = client.documents.create(
+    collection_id=collection.id,
+    file="videos/tutorial.mp4",
+    metadata={
+        "source": "local",
+        "title": "RAG Tutorial",
+        "speaker": "John Doe"
+    }
+)
+
+# Wait for video processing (transcription + chunking)
+import time
+while True:
+    status = client.documents.get_status(youtube_doc.id)
+    if status.status == "completed":
+        print(f"✓ Video processed!")
+        print(f"  Transcript chunks: {status.chunk_count}")
+        print(f"  Transcript tokens: {status.total_tokens}")
+        break
+    elif status.status == "failed":
+        print(f"✗ Processing failed: {status.error_message}")
+        break
+    time.sleep(5)
+
+# Search video transcripts
+results = client.retrievals.search(
+    query="How do transformers work?",
+    mode="hybrid",
+    collection_id=collection.id
+)
+
+for chunk in results.results:
+    print(f"Video: {chunk.document.title}")
+    print(f"Transcript: {chunk.content}")
+    print(f"Metadata: {chunk.metadata}")  # May include timestamp info
+
+client.close()
+```
+
+### Example 4: Async Client with Streaming
 
 ```python
 # examples/async_example.py
@@ -952,11 +1307,13 @@ if __name__ == "__main__":
 - [ ] Integration tests
 
 ### Phase 3: Examples & Documentation (Week 3)
-- [ ] Basic usage example
+- [ ] Ingestion workflow example (CORE - create, upload, monitor, verify)
+- [ ] Basic retrieval/search example
+- [ ] Video ingestion example (YouTube + MP4)
 - [ ] Async streaming example
 - [ ] LangChain integration example
-- [ ] Comprehensive README
-- [ ] API documentation (docstrings)
+- [ ] Comprehensive README (installation, quickstart, examples)
+- [ ] API documentation (docstrings for all public methods)
 - [ ] Type stubs (.pyi files)
 
 ### Phase 4: Publishing (Week 4)
@@ -1031,7 +1388,13 @@ openai = "^1.0.0"
 - Usage examples in docstrings
 
 ### Examples Directory
-- 4 complete examples (basic, async, streaming, langchain)
+- 6 complete examples:
+  1. **ingestion_workflow.py** - Document upload and processing (CORE)
+  2. **basic_usage.py** - Retrieval and search
+  3. **video_ingestion.py** - YouTube and MP4 videos
+  4. **async_example.py** - Async client usage
+  5. **streaming_chat.py** - SSE streaming chat
+  6. **langchain_integration.py** - LangChain retriever
 - Comments explaining each step
 - Real-world use cases
 
@@ -1069,19 +1432,23 @@ openai = "^1.0.0"
 ### Minimum Viable SDK (MVP)
 - [ ] Sync and async clients working
 - [ ] All 17 endpoints implemented
+- [ ] **Full ingestion workflow** (collections + documents + status monitoring)
+- [ ] **All 5 retrieval modes** (semantic, keyword, hybrid, hierarchical, graph)
 - [ ] Type hints and validation
 - [ ] SSE streaming for chat
 - [ ] Basic error handling
-- [ ] 2 examples (basic + langchain)
+- [ ] 3 core examples (ingestion, retrieval, langchain)
 
 ### Production-Ready SDK (v1.0)
 - [ ] Comprehensive error handling
-- [ ] Automatic retries
+- [ ] Automatic retries with exponential backoff
 - [ ] Full test coverage (90%+)
-- [ ] Complete documentation
+- [ ] **File upload support** (multipart/form-data for PDFs, DOCX, videos)
+- [ ] **Video ingestion** (YouTube URL + MP4 file support)
+- [ ] Complete documentation (README + API docs)
 - [ ] Published to PyPI
-- [ ] 4 complete examples
-- [ ] LangChain integration tested
+- [ ] 6 complete examples (all use cases covered)
+- [ ] LangChain integration tested and documented
 
 ---
 
