@@ -18,6 +18,7 @@ from backend.storage.local import LocalStorage
 from backend.parsers import ParserFactory
 from backend.chunking import ChonkieChunker
 from backend.embeddings import OpenAIEmbedder
+from backend.services.document_summary_service import DocumentSummaryService
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +32,7 @@ class ProcessDocumentTask(Task):
         self._parser_factory = None
         self._chunker = None
         self._embedder = None
+        self._summary_service = None
 
     @property
     def storage(self):
@@ -55,6 +57,12 @@ class ProcessDocumentTask(Task):
         if self._embedder is None:
             self._embedder = OpenAIEmbedder()
         return self._embedder
+
+    @property
+    def summary_service(self):
+        if self._summary_service is None:
+            self._summary_service = DocumentSummaryService()
+        return self._summary_service
 
     async def run(self, document_id: str):
         """
@@ -99,6 +107,20 @@ class ProcessDocumentTask(Task):
                     chunk_metadata=chunk_data["metadata"]
                 )
                 db.add(chunk)
+
+            # Generate document-level summary and embedding for hierarchical search
+            logger.info(f"Generating document summary and embedding")
+            summary_result = await self.summary_service.generate_summary_and_embedding(
+                content=parsed["content"],
+                metadata={
+                    "title": document.title,
+                    "filename": document.filename
+                },
+                strategy="concat"  # Fast strategy, suitable for production
+            )
+
+            document.summary = summary_result["summary"]
+            document.document_embedding = summary_result["embedding"]
 
             document.status = "completed"
             document.processed_at = datetime.utcnow()

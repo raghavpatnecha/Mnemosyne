@@ -6,6 +6,7 @@ from sqlalchemy import Column, String, Text, Integer, ForeignKey, JSON, DateTime
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
+from pgvector.sqlalchemy import Vector
 import uuid
 
 from backend.database import Base
@@ -79,6 +80,10 @@ class Document(Base):
     chunk_count = Column(Integer, default=0)
     total_tokens = Column(Integer, default=0)
     error_message = Column(Text)
+
+    # Hierarchical search (Phase 2)
+    document_embedding = Column(Vector(1536), nullable=True)
+    summary = Column(Text, nullable=True)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

@@ -18,6 +18,7 @@ from backend.schemas.retrieval import (
     RetrievalMode
 )
 from backend.search.vector_search import VectorSearchService
+from backend.search.hierarchical_search import HierarchicalSearchService
 from backend.embeddings.openai_embedder import OpenAIEmbedder
 from backend.core.exceptions import http_400_bad_request
 
@@ -33,10 +34,11 @@ async def retrieve(
     """
     Retrieve relevant chunks for a query
 
-    Supports three search modes:
+    Supports four search modes:
     - semantic: Vector similarity search only
     - keyword: Full-text search only
     - hybrid: Both searches merged with RRF
+    - hierarchical: Two-tier search (document → chunk)
 
     Args:
         request: Retrieval request (query, mode, top_k, etc.)
@@ -60,8 +62,9 @@ async def retrieve(
 
     embedder = OpenAIEmbedder()
     search_service = VectorSearchService(db)
+    hierarchical_service = HierarchicalSearchService(db)
 
-    if request.mode in [RetrievalMode.SEMANTIC, RetrievalMode.HYBRID]:
+    if request.mode in [RetrievalMode.SEMANTIC, RetrievalMode.HYBRID, RetrievalMode.HIERARCHICAL]:
         query_embedding = await embedder.embed(request.query)
     else:
         query_embedding = None
@@ -87,6 +90,13 @@ async def retrieve(
             query_text=request.query,
             collection_id=request.collection_id,
             user_id=current_user.id,
+            top_k=request.top_k
+        )
+    elif request.mode == RetrievalMode.HIERARCHICAL:
+        results = await hierarchical_service.search(
+            query_embedding=query_embedding,
+            user_id=current_user.id,
+            collection_id=request.collection_id,
             top_k=request.top_k
         )
     else:
