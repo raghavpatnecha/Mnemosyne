@@ -29,7 +29,7 @@ class AsyncClient(BaseClient):
     def __init__(
         self,
         api_key: str,
-        base_url: str = "http://localhost:8000",
+        base_url: str = "http://localhost:8000/api/v1",
         timeout: float = 60.0,
         max_retries: int = 3,
     ):

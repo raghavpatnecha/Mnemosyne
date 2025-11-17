@@ -17,7 +17,7 @@ import {
 export interface BaseClientConfig {
   /** Mnemosyne API key (required, or set MNEMOSYNE_API_KEY env var) */
   apiKey?: string;
-  /** Base URL for API (default: http://localhost:8000). Note: Must include /api/v1 suffix for API routes */
+  /** Base URL for API (default: http://localhost:8000/api/v1). Include /api/v1 suffix when using custom URLs */
   baseUrl?: string;
   /** Request timeout in milliseconds (default: 60000 = 60 seconds) */
   timeout?: number;
@@ -64,9 +64,9 @@ export class BaseClient {
     }
 
     // Get base URL from config or environment
-    // Note: User must include /api/v1 in the base URL (matching Python SDK behavior)
+    // Default includes /api/v1 prefix for API routes
     const rawBaseUrl =
-      config.baseUrl || process.env.MNEMOSYNE_BASE_URL || 'http://localhost:8000';
+      config.baseUrl || process.env.MNEMOSYNE_BASE_URL || 'http://localhost:8000/api/v1';
 
     // Remove trailing slash (matching Python SDK behavior)
     // This allows string concatenation with leading-slash paths
