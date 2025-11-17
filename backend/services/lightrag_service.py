@@ -367,9 +367,3 @@ async def cleanup_lightrag():
     global _lightrag_manager
     if _lightrag_manager is not None:
         await _lightrag_manager.cleanup()
-
-
-# Backward compatibility helpers
-def get_lightrag_service() -> LightRAGInstanceManager:
-    """Legacy function name for backward compatibility"""
-    return get_lightrag_manager()

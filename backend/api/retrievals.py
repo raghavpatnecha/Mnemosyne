@@ -27,7 +27,7 @@ from backend.schemas.retrieval import (
 from backend.search.vector_search import VectorSearchService
 from backend.search.hierarchical_search import HierarchicalSearchService
 from backend.embeddings.openai_embedder import OpenAIEmbedder
-from backend.services.lightrag_service import get_lightrag_service
+from backend.services.lightrag_service import get_lightrag_manager
 from backend.config import settings
 from backend.core.exceptions import http_400_bad_request
 
@@ -287,15 +287,18 @@ async def retrieve(
         if not settings.LIGHTRAG_ENABLED:
             return None
 
-        lightrag = get_lightrag_service()
-        return await lightrag.query(
-            query_text=query_text,
-            mode=settings.LIGHTRAG_DEFAULT_MODE,
-            top_k=request.top_k,
-            db_session=db,
+        lightrag_manager = get_lightrag_manager()
+
+        # LightRAG returns a string answer (narrative response)
+        # For retrieval API, we only use this as additional context, not as chunks
+        answer = await lightrag_manager.query(
             user_id=current_user.id,
-            collection_id=request.collection_id
+            collection_id=request.collection_id,
+            query=query_text,
+            mode=settings.LIGHTRAG_DEFAULT_MODE
         )
+
+        return {"answer": answer, "chunks": []}
 
     # Execute search based on mode and graph enhancement
     if request.mode == RetrievalMode.GRAPH:

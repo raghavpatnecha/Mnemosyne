@@ -1,6 +1,17 @@
 """
 LightRAG Demo - Knowledge Graph RAG in Action
 Demonstrates entity extraction, relationship detection, and graph-based retrieval
+
+DEPRECATED: This demo uses the old singleton LightRAG API.
+The new architecture uses per-user, per-collection LightRAG instances.
+See backend/services/lightrag_service.py for the new LightRAGInstanceManager API.
+
+To test LightRAG with the new API:
+1. Create a user and collection via the API
+2. Upload documents to the collection
+3. Query using the /retrievals endpoint with mode='graph' or enable_graph=true
+
+This script is kept for reference only and may be removed in future versions.
 """
 
 import asyncio
@@ -8,10 +19,22 @@ import sys
 from pathlib import Path
 from uuid import uuid4
 
+print("=" * 80)
+print("DEPRECATION WARNING:")
+print("This demo uses the old singleton LightRAG API which has been removed.")
+print("The new architecture uses LightRAGInstanceManager with per-user isolation.")
+print()
+print("To test LightRAG:")
+print("1. Use the API endpoints (/documents, /retrievals)")
+print("2. See docs/developer/multi-tenancy.md for details")
+print("=" * 80)
+print()
+sys.exit(1)
+
 # Add backend to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from backend.services.lightrag_service import get_lightrag_service, initialize_lightrag
+from backend.services.lightrag_service import get_lightrag_manager, initialize_lightrag
 from backend.config import settings
 
 
