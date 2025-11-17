@@ -156,3 +156,19 @@ class StorageBackend(ABC):
             str: Path for LightRAG working directory
         """
         return f"users/{user_id}/collections/{collection_id}/lightrag"
+
+    @abstractmethod
+    def get_local_path(self, storage_path: str, user_id: UUID) -> str:
+        """
+        Get local filesystem path for the file.
+        For LocalStorage: returns absolute path
+        For S3Storage: downloads to temp directory and returns temp path
+
+        Args:
+            storage_path: Path/key of the file
+            user_id: Owner user ID (for verification)
+
+        Returns:
+            str: Local filesystem path (may be temporary)
+        """
+        pass

@@ -8,6 +8,9 @@ from botocore.exceptions import ClientError
 from typing import BinaryIO, Union, Optional
 from uuid import UUID
 import logging
+import tempfile
+import os
+from pathlib import Path
 
 from backend.config import settings
 from backend.storage.base import StorageBackend
@@ -309,3 +312,58 @@ class S3Storage(StorageBackend):
         except ClientError as e:
             logger.error(f"Failed to delete user data from S3: {e}")
             raise
+
+    def get_local_path(self, storage_path: str, user_id: UUID) -> str:
+        """
+        Download S3 file to temp directory and return local path
+
+        WARNING: Caller is responsible for cleanup of temp file after use!
+        The temp file will NOT be automatically deleted.
+
+        Args:
+            storage_path: S3 key of the file
+            user_id: Owner user ID (for verification)
+
+        Returns:
+            str: Temporary local file path
+
+        Raises:
+            PermissionError: If file doesn't belong to user
+            FileNotFoundError: If file doesn't exist
+        """
+        # Verify the path belongs to the user (security check)
+        if not storage_path.startswith(f"users/{user_id}/"):
+            raise PermissionError(f"Access denied: file does not belong to user {user_id}")
+
+        # Extract filename from S3 key
+        filename = Path(storage_path).name
+
+        # Create temp file with same extension
+        suffix = Path(filename).suffix
+        temp_file = tempfile.NamedTemporaryFile(
+            delete=False,  # Don't auto-delete, caller manages cleanup
+            suffix=suffix,
+            prefix=f"mnemosyne_s3_"
+        )
+
+        try:
+            # Download from S3 to temp file
+            self.s3_client.download_file(
+                Bucket=self.bucket_name,
+                Key=storage_path,
+                Filename=temp_file.name
+            )
+            logger.info(f"Downloaded S3 file to temp: {temp_file.name}")
+            return temp_file.name
+
+        except ClientError as e:
+            # Clean up temp file if download failed
+            if os.path.exists(temp_file.name):
+                os.unlink(temp_file.name)
+
+            if e.response['Error']['Code'] == '404':
+                raise FileNotFoundError(f"File not found in S3: {storage_path}")
+            logger.error(f"Failed to download from S3: {e}")
+            raise
+        finally:
+            temp_file.close()

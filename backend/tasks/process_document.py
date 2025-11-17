@@ -14,13 +14,14 @@ from backend.worker import celery_app
 from backend.database import SessionLocal
 from backend.models.document import Document
 from backend.models.chunk import DocumentChunk
-from backend.storage.local import LocalStorage
+from backend.storage import storage_backend
 from backend.parsers import ParserFactory
 from backend.chunking import ChonkieChunker
 from backend.embeddings import OpenAIEmbedder
 from backend.services.document_summary_service import DocumentSummaryService
 from backend.services.lightrag_service import get_lightrag_service
 from backend.config import settings
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -30,17 +31,10 @@ class ProcessDocumentTask(Task):
 
     def __init__(self):
         super().__init__()
-        self._storage = None
         self._parser_factory = None
         self._chunker = None
         self._embedder = None
         self._summary_service = None
-
-    @property
-    def storage(self):
-        if self._storage is None:
-            self._storage = LocalStorage()
-        return self._storage
 
     @property
     def parser_factory(self):
@@ -74,6 +68,7 @@ class ProcessDocumentTask(Task):
             document_id: UUID of document to process
         """
         db = SessionLocal()
+        temp_file_path = None
 
         try:
             document = db.query(Document).filter(Document.id == document_id).first()
@@ -86,9 +81,13 @@ class ProcessDocumentTask(Task):
             db.commit()
 
             logger.info(f"Parsing document {document_id}")
-            file_path = self.storage.get_path(document.processing_info["file_path"])
+            # Get local file path (downloads from S3 if needed)
+            temp_file_path = storage_backend.get_local_path(
+                storage_path=document.processing_info["file_path"],
+                user_id=document.user_id
+            )
             parser = self.parser_factory.get_parser(document.content_type)
-            parsed = await parser.parse(str(file_path))
+            parsed = await parser.parse(temp_file_path)
 
             logger.info(f"Chunking document {document_id}")
             chunks = self.chunker.chunk(parsed["content"])
@@ -163,6 +162,15 @@ class ProcessDocumentTask(Task):
             raise
 
         finally:
+            # Clean up temp file if it was downloaded from S3
+            if temp_file_path and temp_file_path.startswith("/tmp/mnemosyne_s3_"):
+                try:
+                    if os.path.exists(temp_file_path):
+                        os.unlink(temp_file_path)
+                        logger.info(f"Cleaned up temp file: {temp_file_path}")
+                except Exception as e:
+                    logger.warning(f"Failed to clean up temp file {temp_file_path}: {e}")
+
             db.close()
 
 

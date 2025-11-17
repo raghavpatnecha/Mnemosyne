@@ -195,3 +195,19 @@ class LocalStorage(StorageBackend):
 
         if user_path.exists() and user_path.is_dir():
             shutil.rmtree(user_path)
+
+    def get_local_path(self, storage_path: str, user_id: UUID) -> str:
+        """Get local filesystem path (already local, just return absolute path)"""
+        absolute_path = self.base_path / storage_path
+
+        # Verify path is within user's directory (security check)
+        expected_prefix = self.base_path / "users" / str(user_id)
+        try:
+            absolute_path.relative_to(expected_prefix)
+        except ValueError:
+            raise PermissionError(f"Access denied: file does not belong to user {user_id}")
+
+        if not absolute_path.exists():
+            raise FileNotFoundError(f"File not found: {storage_path}")
+
+        return str(absolute_path)
