@@ -285,21 +285,28 @@ services:
           cpus: '1'
           memory: 512M
 
-  # Backup Service (Cron for automated backups)
+  # Backup Service (Complete backups: PostgreSQL + LightRAG + Uploads)
   backup:
-    image: postgres:15-alpine
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
     container_name: mnemosyne-backup
     restart: always
+    env_file:
+      - .env.production
     environment:
       - POSTGRES_USER=${POSTGRES_USER}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
       - POSTGRES_DB=${POSTGRES_DB}
-      - BACKUP_RETENTION_DAYS=7
+      - BACKUP_RETENTION_DAYS=${BACKUP_RETENTION_DAYS:-7}
+      - BACKUP_S3_BUCKET=${BACKUP_S3_BUCKET:-}
     volumes:
       - postgres_backups:/backups
-      - ./scripts/backup.sh:/backup.sh:ro
+      - lightrag_data:/app/data/lightrag:ro
+      - ./uploads:/app/uploads:ro
+      - ./scripts/backup-complete.sh:/usr/local/bin/backup:ro
     entrypoint: /bin/sh
-    command: -c "crond -f -d 8"
+    command: -c "while true; do /usr/local/bin/backup; sleep 86400; done"
     depends_on:
       - postgres
     networks:
