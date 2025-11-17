@@ -57,6 +57,6 @@ export class RetrievalsResource {
       metadata_filter: params.metadata_filter,
     };
 
-    return this.client.request<RetrievalResponse>('POST', 'retrievals', { json: request });
+    return this.client.request<RetrievalResponse>('POST', '/retrievals', { json: request });
   }
 }

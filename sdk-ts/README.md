@@ -98,9 +98,9 @@ const collection = await client.collections.create({
 });
 
 // List collections with pagination
-const { data, total, page } = await client.collections.list({
-  page: 1,
-  page_size: 10,
+const { data, pagination } = await client.collections.list({
+  limit: 20,
+  offset: 0,
 });
 
 // Get collection by ID
@@ -137,11 +137,11 @@ const doc = await client.documents.create(
 );
 
 // List documents
-const { data, total } = await client.documents.list({
+const { data, pagination } = await client.documents.list({
   collection_id: 'coll_123',
   status_filter: 'completed',
-  page: 1,
-  page_size: 20,
+  limit: 20,
+  offset: 0,
 });
 
 // Get document

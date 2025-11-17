@@ -26,7 +26,7 @@ describe('BaseClient', () => {
   describe('constructor', () => {
     it('should initialize with provided config', () => {
       expect(client.apiKey).toBe('test_key');
-      expect(client.baseUrl).toBe('http://localhost:8000/');
+      expect(client.baseUrl).toBe('http://localhost:8000');
       expect(client.timeout).toBe(60000); // Default is 60s, not 30s
       expect(client.maxRetries).toBe(3);
     });
@@ -38,16 +38,16 @@ describe('BaseClient', () => {
       const envClient = new BaseClient({});
 
       expect(envClient.apiKey).toBe('env_key');
-      expect(envClient.baseUrl).toBe('http://env:9000/');
+      expect(envClient.baseUrl).toBe('http://env:9000');
     });
 
-    it('should ensure trailing slash in baseUrl', () => {
+    it('should remove trailing slash from baseUrl', () => {
       const slashClient = new BaseClient({
         apiKey: 'key',
-        baseUrl: 'http://localhost:8000',
+        baseUrl: 'http://localhost:8000/',
       });
 
-      expect(slashClient.baseUrl).toBe('http://localhost:8000/');
+      expect(slashClient.baseUrl).toBe('http://localhost:8000');
     });
 
     it('should throw if no API key provided', () => {

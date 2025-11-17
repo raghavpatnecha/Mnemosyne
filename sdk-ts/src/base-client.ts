@@ -68,8 +68,9 @@ export class BaseClient {
     const rawBaseUrl =
       config.baseUrl || process.env.MNEMOSYNE_BASE_URL || 'http://localhost:8000';
 
-    // Ensure baseUrl ends with / for correct URL resolution
-    this.baseUrl = rawBaseUrl.endsWith('/') ? rawBaseUrl : `${rawBaseUrl}/`;
+    // Remove trailing slash (matching Python SDK behavior)
+    // This allows string concatenation with leading-slash paths
+    this.baseUrl = rawBaseUrl.endsWith('/') ? rawBaseUrl.slice(0, -1) : rawBaseUrl;
 
     this.timeout = config.timeout || 60000; // 60 seconds default
     this.maxRetries = config.maxRetries || 3;
@@ -161,7 +162,10 @@ export class BaseClient {
     options: RequestOptions = {},
     skipAuth = false
   ): Promise<T> {
-    const url = new URL(path, this.baseUrl);
+    // Construct URL using string concatenation (like Python SDK)
+    // This allows leading slashes in paths while supporting /api/v1 in baseUrl
+    const urlString = path.startsWith('http') ? path : this.baseUrl + path;
+    const url = new URL(urlString);
 
     // Add query parameters
     if (options.params) {
@@ -245,7 +249,9 @@ export class BaseClient {
     options: RequestOptions = {},
     skipAuth = false
   ): Promise<Response> {
-    const url = new URL(path, this.baseUrl);
+    // Construct URL using string concatenation (like Python SDK)
+    const urlString = path.startsWith('http') ? path : this.baseUrl + path;
+    const url = new URL(urlString);
 
     // Add query parameters
     if (options.params) {

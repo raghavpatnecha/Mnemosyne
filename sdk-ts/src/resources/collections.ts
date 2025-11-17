@@ -35,7 +35,7 @@ export class CollectionsResource {
    * ```
    */
   async create(params: CollectionCreate): Promise<CollectionResponse> {
-    return this.client.request<CollectionResponse>('POST', 'collections', { json: params });
+    return this.client.request<CollectionResponse>('POST', '/collections', { json: params });
   }
 
   /**
@@ -57,7 +57,7 @@ export class CollectionsResource {
       offset: params?.offset || 0,
     };
 
-    return this.client.request<CollectionListResponse>('GET', 'collections', {
+    return this.client.request<CollectionListResponse>('GET', '/collections', {
       params: queryParams,
     });
   }
@@ -75,7 +75,7 @@ export class CollectionsResource {
    * ```
    */
   async get(collectionId: string): Promise<CollectionResponse> {
-    return this.client.request<CollectionResponse>('GET', `collections/${collectionId}`);
+    return this.client.request<CollectionResponse>('GET', `/collections/${collectionId}`);
   }
 
   /**
@@ -96,7 +96,7 @@ export class CollectionsResource {
    * ```
    */
   async update(collectionId: string, params: CollectionUpdate): Promise<CollectionResponse> {
-    return this.client.request<CollectionResponse>('PATCH', `collections/${collectionId}`, {
+    return this.client.request<CollectionResponse>('PATCH', `/collections/${collectionId}`, {
       json: params,
     });
   }
@@ -113,6 +113,6 @@ export class CollectionsResource {
    * ```
    */
   async delete(collectionId: string): Promise<void> {
-    await this.client.request<void>('DELETE', `collections/${collectionId}`);
+    await this.client.request<void>('DELETE', `/collections/${collectionId}`);
   }
 }
