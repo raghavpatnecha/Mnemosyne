@@ -44,6 +44,7 @@ services:
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
     volumes:
       - ./uploads:/app/uploads
+      - lightrag_data:/app/data/lightrag
       - api_logs:/app/logs
     depends_on:
       postgres:
@@ -163,6 +164,7 @@ services:
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
     volumes:
       - ./uploads:/app/uploads
+      - lightrag_data:/app/data/lightrag
       - celery_logs:/app/logs
     depends_on:
       postgres:
@@ -309,6 +311,8 @@ volumes:
   postgres_backups:
     driver: local
   redis_data:
+    driver: local
+  lightrag_data:
     driver: local
   nginx_cache:
     driver: local
