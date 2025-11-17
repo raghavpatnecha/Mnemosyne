@@ -1,0 +1,383 @@
+/**
+ * SDK Features Styles
+ * Styles for collection management, document upload, and search configuration
+ */
+
+/* ========== Toolbar ========== */
+.sdk-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 20px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    flex-wrap: wrap;
+    gap: 15px;
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+}
+
+.toolbar-section {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.toolbar-section label {
+    font-weight: 600;
+    font-size: 14px;
+    margin-right: 5px;
+}
+
+/* Collection Selector */
+.collection-selector {
+    padding: 6px 12px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.15);
+    color: white;
+    font-size: 14px;
+    min-width: 180px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.collection-selector:hover {
+    background: rgba(255, 255, 255, 0.25);
+    border-color: rgba(255, 255, 255, 0.5);
+}
+
+.collection-selector option {
+    background: #764ba2;
+    color: white;
+}
+
+/* Toolbar Buttons */
+.toolbar-btn {
+    padding: 6px 14px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.15);
+    color: white;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-weight: 500;
+}
+
+.toolbar-btn:hover {
+    background: rgba(255, 255, 255, 0.25);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.toolbar-btn.primary {
+    background: rgba(255, 255, 255, 0.3);
+    border-color: rgba(255, 255, 255, 0.5);
+}
+
+.toolbar-btn.primary:hover {
+    background: rgba(255, 255, 255, 0.4);
+}
+
+/* Search Mode Options */
+.mode-option {
+    padding: 6px 12px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-weight: 500;
+}
+
+.mode-option:hover {
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+}
+
+.mode-option.active {
+    background: rgba(255, 255, 255, 0.9);
+    color: #764ba2;
+    border-color: white;
+    font-weight: 600;
+}
+
+/* Graph Toggle */
+.graph-toggle {
+    padding: 6px 10px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 18px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.graph-toggle:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.graph-toggle.active {
+    background: rgba(255, 255, 255, 0.3);
+    color: white;
+    border-color: rgba(255, 255, 255, 0.6);
+}
+
+/* ========== Modal / Dialog ========== */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 2000;
+    backdrop-filter: blur(4px);
+}
+
+.modal-content {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    width: 90%;
+    max-width: 500px;
+    overflow: hidden;
+    animation: modalFadeIn 0.3s ease;
+}
+
+@keyframes modalFadeIn {
+    from {
+        opacity: 0;
+        transform: scale(0.9) translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+.modal-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.modal-header h2 {
+    margin: 0;
+    font-size: 22px;
+    font-weight: 600;
+}
+
+.close-btn {
+    background: transparent;
+    border: none;
+    color: white;
+    font-size: 32px;
+    cursor: pointer;
+    line-height: 1;
+    padding: 0;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: all 0.2s ease;
+}
+
+.close-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+    transform: rotate(90deg);
+}
+
+.modal-body {
+    padding: 30px;
+}
+
+/* Upload Sections */
+.upload-section {
+    margin-bottom: 25px;
+}
+
+.upload-section h3 {
+    margin: 0 0 12px 0;
+    font-size: 16px;
+    color: #333;
+    font-weight: 600;
+}
+
+.upload-section input[type="file"] {
+    display: block;
+    width: 100%;
+    padding: 12px;
+    border: 2px dashed #764ba2;
+    border-radius: 8px;
+    background: #f9f7ff;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.upload-section input[type="file"]:hover {
+    background: #f0ebff;
+    border-color: #667eea;
+}
+
+.url-input {
+    width: 100%;
+    padding: 12px;
+    border: 2px solid #e0e0e0;
+    border-radius: 8px;
+    font-size: 14px;
+    margin-bottom: 12px;
+    transition: all 0.3s ease;
+}
+
+.url-input:focus {
+    outline: none;
+    border-color: #764ba2;
+    box-shadow: 0 0 0 3px rgba(118, 75, 162, 0.1);
+}
+
+.upload-hint {
+    font-size: 12px;
+    color: #666;
+    margin: 8px 0 0 0;
+    font-style: italic;
+}
+
+.upload-divider {
+    text-align: center;
+    margin: 25px 0;
+    position: relative;
+    color: #999;
+    font-weight: 600;
+    font-size: 14px;
+}
+
+.upload-divider::before,
+.upload-divider::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    width: 40%;
+    height: 1px;
+    background: #e0e0e0;
+}
+
+.upload-divider::before {
+    left: 0;
+}
+
+.upload-divider::after {
+    right: 0;
+}
+
+/* ========== Notifications ========== */
+.notification-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 3000;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.notification {
+    padding: 14px 20px;
+    border-radius: 8px;
+    background: white;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    min-width: 280px;
+    max-width: 400px;
+    font-size: 14px;
+    font-weight: 500;
+    animation: slideIn 0.3s ease;
+    transition: opacity 0.3s ease;
+    border-left: 4px solid #764ba2;
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateX(400px);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+.notification-success {
+    border-left-color: #10b981;
+    background: #f0fdf4;
+    color: #065f46;
+}
+
+.notification-error {
+    border-left-color: #ef4444;
+    background: #fef2f2;
+    color: #991b1b;
+}
+
+.notification-warning {
+    border-left-color: #f59e0b;
+    background: #fffbeb;
+    color: #78350f;
+}
+
+.notification-info {
+    border-left-color: #3b82f6;
+    background: #eff6ff;
+    color: #1e40af;
+}
+
+/* ========== Responsive Design ========== */
+@media (max-width: 768px) {
+    .sdk-toolbar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .toolbar-section {
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    .collection-selector {
+        flex: 1;
+    }
+
+    .mode-option {
+        flex: 1;
+        text-align: center;
+    }
+
+    .modal-content {
+        width: 95%;
+        margin: 10px;
+    }
+
+    .notification-container {
+        right: 10px;
+        left: 10px;
+    }
+
+    .notification {
+        min-width: auto;
+        max-width: none;
+    }
+}
