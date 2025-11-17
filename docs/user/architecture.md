@@ -71,8 +71,15 @@ mode="graph"  # Uses LightRAG!
 - **Knowledge graph retrieval**
 - Entity and relationship extraction
 - Dual-level retrieval (local + global)
+- **Source extraction**: Real chunk IDs from PostgreSQL for citations
 - **Storage**: File-based in LightRAG working directory
 - Best for: Complex reasoning, entity relationships
+
+**How it works**:
+1. LightRAG queries knowledge graph for context
+2. System performs semantic search to find actual source chunks
+3. Returns real chunk IDs and document references for citations
+4. Response format consistent with other search modes
 
 ## Data Flow
 
@@ -94,8 +101,12 @@ mode="graph"  # Uses LightRAG!
 2. API receives mode parameter
 3. **Route based on mode**:
    - `semantic/keyword/hybrid/hierarchical` → PostgreSQL
-   - `graph` → LightRAG
-4. Results ranked and returned
+   - `graph` → LightRAG + PostgreSQL (source extraction)
+4. **For graph mode**:
+   - LightRAG returns synthesized context from knowledge graph
+   - System searches PostgreSQL to find actual source chunks
+   - Returns both graph context and real chunk IDs
+5. Results ranked and returned
 
 ## Storage Breakdown
 

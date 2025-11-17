@@ -395,7 +395,12 @@ Perform semantic search and retrieve relevant document chunks.
 ```
 
 **Parameters**:
-- `mode` (string): "vector" (semantic only), "keyword" (full-text only), "hybrid" (RRF fusion)
+- `mode` (string): Search mode
+  - `"semantic"`: Vector similarity search (default)
+  - `"keyword"`: PostgreSQL full-text search (BM25)
+  - `"hybrid"`: RRF fusion of semantic + keyword (recommended)
+  - `"hierarchical"`: Two-tier document → chunk retrieval
+  - `"graph"`: LightRAG knowledge graph search with source extraction ⭐
 - `top_k` (int, default: 10, max: 100): Number of results to return
 - `rerank` (boolean, default: false): Apply reranking to results
 - `filters` (object): Metadata filters using dot notation
@@ -433,67 +438,56 @@ Perform semantic search and retrieve relevant document chunks.
 }
 ```
 
-### Knowledge Graph Query
+### Graph Mode Search (LightRAG) ⭐
 
-Query the knowledge graph for entity-relationship based retrieval.
+Use mode `"graph"` for knowledge graph-based retrieval with automatic source extraction.
 
-**Endpoint**: `POST /retrievals/graph`
-
-**Request Body**:
+**Request Example**:
 ```json
 {
   "collection_id": "col_abc123",
   "query": "What are the relationships between Docker and Kubernetes?",
-  "mode": "local",
+  "mode": "graph",
   "top_k": 10
 }
 ```
 
-**Parameters**:
-- `mode` (string): "local" (entity-focused), "global" (community-based), "hybrid" (both)
+**How Graph Mode Works**:
+1. LightRAG queries knowledge graph for entity-relationship context
+2. System performs semantic search to find actual source chunks in PostgreSQL
+3. Returns real chunk IDs and document references for citations
+4. Response format consistent with other search modes
 
-**Response**: `200 OK`
+**Response**: `200 OK` (Same schema as other modes)
 ```json
 {
   "query": "What are the relationships between Docker and Kubernetes?",
-  "entities": [
-    {
-      "name": "Docker",
-      "type": "technology",
-      "description": "Container platform",
-      "chunk_references": ["chunk_aaa111", "chunk_bbb222"]
-    },
-    {
-      "name": "Kubernetes",
-      "type": "technology",
-      "description": "Container orchestration platform",
-      "chunk_references": ["chunk_ccc333", "chunk_ddd444"]
-    }
-  ],
-  "relationships": [
-    {
-      "source": "Docker",
-      "target": "Kubernetes",
-      "type": "ORCHESTRATED_BY",
-      "description": "Docker containers are orchestrated by Kubernetes",
-      "chunk_reference": "chunk_aaa111"
-    }
-  ],
-  "chunks": [
+  "results": [
     {
       "chunk_id": "chunk_aaa111",
-      "content": "Kubernetes orchestrates Docker containers...",
-      "score": 0.95
+      "document_id": "doc_xyz789",
+      "content": "Kubernetes orchestrates Docker containers by...",
+      "score": 0.95,
+      "rank": 1,
+      "document_metadata": {
+        "title": "Container Orchestration Guide",
+        "filename": "k8s-guide.pdf"
+      },
+      "chunk_metadata": {
+        "page_number": 12,
+        "section": "Docker Integration"
+      }
     }
   ],
   "retrieval_metadata": {
-    "mode": "local",
-    "entities_found": 2,
-    "relationships_found": 1,
+    "mode": "graph",
+    "total_results": 10,
     "retrieval_time_ms": 78
   }
 }
 ```
+
+**Note**: Graph mode returns actual chunk IDs from your PostgreSQL database, not synthesized results. This ensures you can cite sources and maintain response format consistency across all search modes.
 
 ---
 
