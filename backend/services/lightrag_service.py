@@ -1,12 +1,13 @@
 """
 LightRAG Service - Graph-based RAG with entity extraction
 Implements knowledge graph construction and dual-level retrieval
+WITH PER-USER, PER-COLLECTION ISOLATION
 """
 
 import asyncio
 import logging
 from pathlib import Path
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Tuple
 from uuid import UUID
 
 try:
@@ -20,30 +21,25 @@ except ImportError:
     QueryParam = None
 
 from backend.config import settings
+from backend.storage import storage_backend
 
 logger = logging.getLogger(__name__)
 
 
-class LightRAGService:
+class LightRAGInstanceManager:
     """
-    LightRAG wrapper for Mnemosyne knowledge graph RAG
+    Manages per-user, per-collection LightRAG instances
 
     Features:
-    - Automatic entity and relationship extraction
-    - Knowledge graph construction from documents
-    - Dual-level retrieval (local + global)
-    - Hybrid graph + vector search
-    - Incremental updates without full rebuilds
-
-    Query Modes:
-    - local: Specific entity queries (e.g., "Who founded Apple?")
-    - global: Abstract theme queries (e.g., "Major tech companies")
-    - hybrid: Combines both approaches
-    - naive: Vector-only search (no graph)
+    - Complete user isolation (each user gets separate instances)
+    - Per-collection knowledge graphs (no data mixing)
+    - Automatic instance caching and reuse
+    - User-scoped working directories (local or S3)
+    - Resource cleanup and lifecycle management
     """
 
     def __init__(self):
-        """Initialize LightRAG service"""
+        """Initialize instance manager"""
         if not LIGHTRAG_AVAILABLE:
             logger.warning(
                 "LightRAG not available. Install with: poetry add lightrag-hku"
@@ -56,33 +52,71 @@ class LightRAGService:
             logger.info("LightRAG is disabled in configuration")
             return
 
-        self.working_dir = Path(settings.LIGHTRAG_WORKING_DIR)
-        self.working_dir.mkdir(parents=True, exist_ok=True)
+        # Cache: {(user_id, collection_id): LightRAG instance}
+        self._instances: Dict[Tuple[UUID, UUID], LightRAG] = {}
+        self._initialized: Dict[Tuple[UUID, UUID], bool] = {}
 
-        self.rag = None
-        self._initialized = False
+        logger.info("LightRAG instance manager created")
 
-        logger.info(f"LightRAG service created (working_dir: {self.working_dir})")
-
-    async def initialize(self):
+    def _get_working_dir(self, user_id: UUID, collection_id: UUID) -> str:
         """
-        Initialize LightRAG instance
+        Get user-scoped working directory for LightRAG
 
-        Must be called before using the service.
-        Creates storage backends and initializes pipeline.
+        Uses storage backend to ensure proper isolation:
+        - Local: ./data/lightrag/users/{user_id}/collections/{collection_id}
+        - S3: (not yet supported for LightRAG, will use local for now)
+
+        Args:
+            user_id: Owner user ID
+            collection_id: Collection ID
+
+        Returns:
+            str: Absolute path to working directory
+        """
+        # LightRAG currently requires local filesystem
+        # Use storage backend to get user-scoped path
+        base_path = Path(settings.LIGHTRAG_WORKING_DIR)
+        working_dir = base_path / "users" / str(user_id) / "collections" / str(collection_id)
+
+        # Create directory if it doesn't exist
+        working_dir.mkdir(parents=True, exist_ok=True)
+
+        logger.info(f"LightRAG working dir for user {user_id}, collection {collection_id}: {working_dir}")
+        return str(working_dir)
+
+    async def get_instance(
+        self,
+        user_id: UUID,
+        collection_id: UUID
+    ) -> Optional[LightRAG]:
+        """
+        Get or create LightRAG instance for user and collection
+
+        Args:
+            user_id: Owner user ID
+            collection_id: Collection ID
+
+        Returns:
+            LightRAG instance (user-scoped and collection-scoped)
         """
         if not self.enabled:
-            return
+            return None
 
-        if self._initialized:
-            logger.debug("LightRAG already initialized")
-            return
+        cache_key = (user_id, collection_id)
 
-        logger.info("Initializing LightRAG...")
+        # Return cached instance if available
+        if cache_key in self._instances and self._initialized.get(cache_key, False):
+            logger.debug(f"Returning cached LightRAG instance for user {user_id}, collection {collection_id}")
+            return self._instances[cache_key]
+
+        # Create new instance
+        logger.info(f"Creating new LightRAG instance for user {user_id}, collection {collection_id}")
 
         try:
-            self.rag = LightRAG(
-                working_dir=str(self.working_dir),
+            working_dir = self._get_working_dir(user_id, collection_id)
+
+            instance = LightRAG(
+                working_dir=working_dir,
 
                 # Embedding function (OpenAI compatible)
                 embedding_func=openai_embed,
@@ -104,34 +138,38 @@ class LightRAGService:
                 max_total_tokens=settings.LIGHTRAG_MAX_TOKENS,
 
                 # Storage backends (default: NetworkX + NanoVector)
-                # TODO: Migrate to PostgreSQL storage
+                # TODO: Migrate to PostgreSQL storage for multi-user support
             )
 
-            # Required initialization steps
-            await self.rag.initialize_storages()
+            # Initialize storages
+            await instance.initialize_storages()
             await initialize_pipeline_status()
 
-            self._initialized = True
-            logger.info("LightRAG initialized successfully")
+            # Cache instance
+            self._instances[cache_key] = instance
+            self._initialized[cache_key] = True
+
+            logger.info(f"LightRAG instance initialized for user {user_id}, collection {collection_id}")
+            return instance
 
         except Exception as e:
-            logger.error(f"Failed to initialize LightRAG: {e}", exc_info=True)
-            self.enabled = False
-            raise
+            logger.error(f"Failed to create LightRAG instance: {e}", exc_info=True)
+            return None
 
     async def insert_document(
         self,
+        user_id: UUID,
+        collection_id: UUID,
         content: str,
         document_id: UUID,
         metadata: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """
-        Insert document into knowledge graph
-
-        Extracts entities and relationships automatically using LLM.
-        Updates graph incrementally without rebuilding.
+        Insert document into user's collection knowledge graph
 
         Args:
+            user_id: Owner user ID
+            collection_id: Collection ID
             content: Document text content
             document_id: Unique document identifier
             metadata: Optional metadata (title, filename, etc.)
@@ -142,254 +180,196 @@ class LightRAGService:
         if not self.enabled:
             return {"status": "disabled"}
 
-        if not self._initialized:
-            await self.initialize()
+        instance = await self.get_instance(user_id, collection_id)
+        if not instance:
+            return {"status": "error", "message": "Failed to get LightRAG instance"}
 
         metadata = metadata or {}
         doc_title = metadata.get("title", "Unknown")
 
-        logger.info(
-            f"Inserting document into LightRAG: {doc_title} "
-            f"(id: {document_id}, length: {len(content)} chars)"
-        )
+        logger.info(f"Inserting document {document_id} into LightRAG for user {user_id}, collection {collection_id}")
 
         try:
-            # LightRAG automatically:
-            # 1. Extracts entities and relationships
-            # 2. Builds knowledge graph
-            # 3. Creates embeddings
-            # 4. Updates incremental indices
-            await self.rag.ainsert(content)
+            # Insert into knowledge graph (async)
+            # This extracts entities, relationships, and builds the graph
+            await instance.insert(content)
 
-            logger.info(f"Successfully indexed document: {doc_title}")
+            logger.info(f"Document {document_id} inserted successfully into LightRAG")
 
             return {
-                "status": "indexed",
+                "status": "success",
                 "document_id": str(document_id),
-                "content_length": len(content),
-                "metadata": metadata
+                "title": doc_title,
+                "content_length": len(content)
             }
 
         except Exception as e:
-            logger.error(
-                f"Failed to insert document {document_id} into LightRAG: {e}",
-                exc_info=True
-            )
+            logger.error(f"Failed to insert document into LightRAG: {e}", exc_info=True)
             return {
-                "status": "failed",
-                "document_id": str(document_id),
-                "error": str(e)
+                "status": "error",
+                "message": str(e),
+                "document_id": str(document_id)
             }
 
     async def query(
         self,
-        query_text: str,
-        mode: str = "hybrid",
-        top_k: int = 10,
-        only_context: bool = True,
-        db_session = None,
-        user_id: UUID = None,
-        collection_id: UUID = None
-    ) -> Dict[str, Any]:
+        user_id: UUID,
+        collection_id: UUID,
+        query: str,
+        mode: str = "hybrid"
+    ) -> str:
         """
-        Query knowledge graph with dual-level retrieval
+        Query user's collection knowledge graph
 
         Args:
-            query_text: Search query
-            mode: Query mode:
-                - "local": Specific entities (e.g., "Who is X?")
-                - "global": Abstract themes (e.g., "What is Y?")
-                - "hybrid": Both local + global (recommended)
-                - "naive": Vector-only (no graph)
-            top_k: Number of results to return
-            only_context: If True, return context only (no LLM answer)
-            db_session: Optional database session for source extraction
-            user_id: Optional user ID for source filtering
-            collection_id: Optional collection ID for source filtering
+            user_id: Owner user ID
+            collection_id: Collection ID
+            query: Query text
+            mode: Query mode (local/global/hybrid/naive)
 
         Returns:
-            Query results with context and source chunks
+            Query response
         """
         if not self.enabled:
-            return {"status": "disabled", "context": "", "chunks": []}
+            return "LightRAG is disabled"
 
-        if not self._initialized:
-            await self.initialize()
+        instance = await self.get_instance(user_id, collection_id)
+        if not instance:
+            return "Failed to get LightRAG instance"
 
-        logger.info(f"Querying LightRAG: '{query_text}' (mode: {mode}, top_k: {top_k})")
+        logger.info(f"Querying LightRAG for user {user_id}, collection {collection_id} with mode '{mode}'")
 
         try:
-            # Query with specified mode
-            result = await self.rag.aquery(
-                query_text,
-                param=QueryParam(
-                    mode=mode,
-                    top_k=top_k * 3 if mode == "hybrid" else top_k,
-                    only_need_context=only_context,
-                    max_total_tokens=settings.LIGHTRAG_MAX_TOKENS
-                )
-            )
+            param = QueryParam(mode=mode)
+            result = await instance.query(query, param=param)
 
-            logger.info(
-                f"LightRAG query completed: {len(result)} chars returned"
-            )
-
-            # Extract source chunks from our database
-            source_chunks = []
-            if db_session and result:
-                source_chunks = await self._extract_source_chunks(
-                    context=result,
-                    query_text=query_text,
-                    db_session=db_session,
-                    user_id=user_id,
-                    collection_id=collection_id,
-                    top_k=top_k
-                )
-
-            return {
-                "status": "success",
-                "query": query_text,
-                "mode": mode,
-                "context": result,
-                "chunks": source_chunks
-            }
+            logger.info(f"LightRAG query completed successfully")
+            return result
 
         except Exception as e:
             logger.error(f"LightRAG query failed: {e}", exc_info=True)
-            return {
-                "status": "failed",
-                "query": query_text,
-                "error": str(e),
-                "context": "",
-                "chunks": []
-            }
+            return f"Query failed: {str(e)}"
 
-    async def _extract_source_chunks(
-        self,
-        context: str,
-        query_text: str,
-        db_session,
-        user_id: Optional[UUID] = None,
-        collection_id: Optional[UUID] = None,
-        top_k: int = 10
-    ) -> List[Dict[str, Any]]:
+    async def delete_collection(self, user_id: UUID, collection_id: UUID):
         """
-        Extract source chunks from our database based on LightRAG context
-
-        Strategy: LightRAG returns synthesized context from knowledge graph.
-        We search our database to find the actual chunks that were likely used,
-        providing real chunk IDs and document references for consistency.
+        Delete LightRAG instance for a collection
 
         Args:
-            context: Context string returned by LightRAG
-            query_text: Original query for semantic search
-            db_session: Database session
-            user_id: Filter by user ownership
-            collection_id: Filter by collection
-            top_k: Number of source chunks to return
-
-        Returns:
-            List of chunk dictionaries with real IDs and metadata
+            user_id: Owner user ID
+            collection_id: Collection ID to delete
         """
-        from backend.embeddings.openai_embedder import OpenAIEmbedder
-        from backend.search.vector_search import VectorSearchService
+        cache_key = (user_id, collection_id)
 
-        if not context or not db_session:
-            return []
+        # Cleanup instance if cached
+        if cache_key in self._instances:
+            try:
+                instance = self._instances[cache_key]
+                await instance.finalize_storages()
+                logger.info(f"Finalized LightRAG instance for user {user_id}, collection {collection_id}")
+            except Exception as e:
+                logger.error(f"Error finalizing LightRAG instance: {e}")
 
+            # Remove from cache
+            del self._instances[cache_key]
+            if cache_key in self._initialized:
+                del self._initialized[cache_key]
+
+        # Delete working directory
         try:
-            # Use semantic search to find chunks matching the query
-            # This gives us real source attribution from our database
-            embedder = OpenAIEmbedder()
-            query_embedding = await embedder.embed(query_text)
-
-            search_service = VectorSearchService(db_session)
-            chunks = search_service.search(
-                query_embedding=query_embedding,
-                collection_id=collection_id,
-                user_id=user_id,
-                top_k=top_k
-            )
-
-            logger.info(
-                f"Found {len(chunks)} source chunks for LightRAG context "
-                f"(user_id={user_id}, collection_id={collection_id})"
-            )
-
-            return chunks
-
+            working_dir = Path(self._get_working_dir(user_id, collection_id))
+            if working_dir.exists():
+                import shutil
+                shutil.rmtree(working_dir)
+                logger.info(f"Deleted LightRAG working directory: {working_dir}")
         except Exception as e:
-            logger.error(f"Failed to extract source chunks: {e}", exc_info=True)
-            return []
+            logger.error(f"Error deleting LightRAG working directory: {e}")
 
-    async def get_entity_count(self) -> int:
-        """Get total number of entities in knowledge graph"""
-        if not self.enabled or not self._initialized:
-            return 0
+    async def delete_user_data(self, user_id: UUID):
+        """
+        Delete all LightRAG instances for a user
 
+        Args:
+            user_id: User ID to delete data for
+        """
+        # Find all instances for this user
+        user_keys = [key for key in self._instances.keys() if key[0] == user_id]
+
+        for cache_key in user_keys:
+            try:
+                instance = self._instances[cache_key]
+                await instance.finalize_storages()
+                logger.info(f"Finalized LightRAG instance: {cache_key}")
+            except Exception as e:
+                logger.error(f"Error finalizing LightRAG instance {cache_key}: {e}")
+
+            # Remove from cache
+            del self._instances[cache_key]
+            if cache_key in self._initialized:
+                del self._initialized[cache_key]
+
+        # Delete user's LightRAG directory
         try:
-            # Access entity storage
-            # Implementation depends on storage backend
-            return 0
+            base_path = Path(settings.LIGHTRAG_WORKING_DIR)
+            user_dir = base_path / "users" / str(user_id)
+            if user_dir.exists():
+                import shutil
+                shutil.rmtree(user_dir)
+                logger.info(f"Deleted user's LightRAG directory: {user_dir}")
         except Exception as e:
-            logger.error(f"Failed to get entity count: {e}")
-            return 0
-
-    async def get_relationship_count(self) -> int:
-        """Get total number of relationships in knowledge graph"""
-        if not self.enabled or not self._initialized:
-            return 0
-
-        try:
-            # Access graph storage
-            # Implementation depends on storage backend
-            return 0
-        except Exception as e:
-            logger.error(f"Failed to get relationship count: {e}")
-            return 0
+            logger.error(f"Error deleting user's LightRAG directory: {e}")
 
     async def cleanup(self):
         """
-        Cleanup resources and close connections
+        Cleanup all resources and close connections
 
         Should be called on application shutdown.
         """
-        if self.rag and self._initialized:
+        logger.info("Cleaning up all LightRAG instances...")
+
+        for cache_key, instance in list(self._instances.items()):
             try:
-                logger.info("Finalizing LightRAG storages...")
-                await self.rag.finalize_storages()
-                self._initialized = False
-                logger.info("LightRAG cleanup completed")
+                await instance.finalize_storages()
+                logger.info(f"Finalized LightRAG instance: {cache_key}")
             except Exception as e:
-                logger.error(f"Error during LightRAG cleanup: {e}", exc_info=True)
+                logger.error(f"Error finalizing LightRAG instance {cache_key}: {e}")
+
+        self._instances.clear()
+        self._initialized.clear()
+        logger.info("LightRAG cleanup completed")
 
 
-# Singleton instance
-_lightrag_service: Optional[LightRAGService] = None
+# Global instance manager
+_lightrag_manager: Optional[LightRAGInstanceManager] = None
 
 
-def get_lightrag_service() -> LightRAGService:
+def get_lightrag_manager() -> LightRAGInstanceManager:
     """
-    Get or create LightRAG service singleton
+    Get or create LightRAG instance manager
 
     Returns:
-        Shared LightRAG service instance
+        Shared LightRAG instance manager
     """
-    global _lightrag_service
-    if _lightrag_service is None:
-        _lightrag_service = LightRAGService()
-    return _lightrag_service
+    global _lightrag_manager
+    if _lightrag_manager is None:
+        _lightrag_manager = LightRAGInstanceManager()
+    return _lightrag_manager
 
 
 async def initialize_lightrag():
-    """Initialize LightRAG service (call at startup)"""
-    service = get_lightrag_service()
-    if service.enabled:
-        await service.initialize()
+    """Initialize LightRAG manager (call at startup)"""
+    manager = get_lightrag_manager()
+    if manager.enabled:
+        logger.info("LightRAG manager initialized")
 
 
 async def cleanup_lightrag():
-    """Cleanup LightRAG service (call at shutdown)"""
-    global _lightrag_service
-    if _lightrag_service is not None:
-        await _lightrag_service.cleanup()
+    """Cleanup LightRAG manager (call at shutdown)"""
+    global _lightrag_manager
+    if _lightrag_manager is not None:
+        await _lightrag_manager.cleanup()
+
+
+# Backward compatibility helpers
+def get_lightrag_service() -> LightRAGInstanceManager:
+    """Legacy function name for backward compatibility"""
+    return get_lightrag_manager()

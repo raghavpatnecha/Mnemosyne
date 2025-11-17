@@ -19,7 +19,7 @@ from backend.parsers import ParserFactory
 from backend.chunking import ChonkieChunker
 from backend.embeddings import OpenAIEmbedder
 from backend.services.document_summary_service import DocumentSummaryService
-from backend.services.lightrag_service import get_lightrag_service
+from backend.services.lightrag_service import get_lightrag_manager
 from backend.config import settings
 import os
 import tempfile
@@ -90,6 +90,29 @@ class ProcessDocumentTask(Task):
             parser = self.parser_factory.get_parser(document.content_type)
             parsed = await parser.parse(temp_file_path)
 
+            # Store extracted images (if any)
+            extracted_images = []
+            if "images" in parsed and parsed["images"]:
+                logger.info(f"Saving {len(parsed['images'])} extracted images")
+                for img in parsed["images"]:
+                    try:
+                        img_path = storage_backend.save_extracted_content(
+                            content=img["data"],
+                            user_id=document.user_id,
+                            collection_id=document.collection_id,
+                            document_id=document.id,
+                            content_type="image/png",
+                            filename=img["filename"]
+                        )
+                        extracted_images.append({
+                            "path": img_path,
+                            "page": img.get("page"),
+                            "filename": img["filename"]
+                        })
+                        logger.info(f"Saved image: {img['filename']}")
+                    except Exception as e:
+                        logger.warning(f"Failed to save image {img['filename']}: {e}")
+
             logger.info(f"Chunking document {document_id}")
             chunks = self.chunker.chunk(parsed["content"])
 
@@ -124,12 +147,14 @@ class ProcessDocumentTask(Task):
             document.summary = summary_result["summary"]
             document.document_embedding = summary_result["embedding"]
 
-            # Index in LightRAG if enabled
+            # Index in LightRAG if enabled (per-user, per-collection)
             if settings.LIGHTRAG_ENABLED:
                 try:
-                    logger.info(f"Indexing document in LightRAG")
-                    lightrag = get_lightrag_service()
-                    await lightrag.insert_document(
+                    logger.info(f"Indexing document in LightRAG for user {document.user_id}, collection {document.collection_id}")
+                    lightrag_manager = get_lightrag_manager()
+                    await lightrag_manager.insert_document(
+                        user_id=document.user_id,
+                        collection_id=document.collection_id,
                         content=parsed["content"],
                         document_id=document.id,
                         metadata={
@@ -146,6 +171,11 @@ class ProcessDocumentTask(Task):
             document.chunk_count = len(chunks)
             document.total_tokens = sum(c["metadata"]["tokens"] for c in chunks)
             document.processing_info["completed_at"] = datetime.utcnow().isoformat()
+
+            # Store extracted images metadata
+            if extracted_images:
+                document.processing_info["extracted_images"] = extracted_images
+                logger.info(f"Stored metadata for {len(extracted_images)} extracted images")
 
             db.commit()
             logger.info(f"Document {document_id} processed successfully")
