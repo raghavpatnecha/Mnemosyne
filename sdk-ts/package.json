@@ -1,0 +1,62 @@
+{
+  "name": "@mnemosyne/sdk",
+  "version": "0.1.0",
+  "description": "TypeScript SDK for Mnemosyne RAG API - modern, type-safe, fully async",
+  "keywords": ["rag", "retrieval", "embeddings", "search", "ai", "ml", "llm", "typescript"],
+  "homepage": "https://github.com/raghavpatnecha/Mnemosyne/tree/main/sdk-ts",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/raghavpatnecha/Mnemosyne.git",
+    "directory": "sdk-ts"
+  },
+  "license": "MIT",
+  "author": "Mnemosyne Team <team@mnemosyne.dev>",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "require": "./dist/index.cjs",
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": ["dist", "README.md", "LICENSE"],
+  "scripts": {
+    "build": "tsup",
+    "build:watch": "tsup --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "lint": "eslint src --ext .ts",
+    "lint:fix": "eslint src --ext .ts --fix",
+    "format": "prettier --write \"src/**/*.ts\" \"examples/**/*.ts\"",
+    "format:check": "prettier --check \"src/**/*.ts\" \"examples/**/*.ts\"",
+    "typecheck": "tsc --noEmit",
+    "docs": "typedoc src/index.ts --out docs",
+    "prepublishOnly": "npm run build && npm run test && npm run lint",
+    "changeset": "changeset",
+    "version": "changeset version",
+    "release": "npm run build && changeset publish"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@changesets/cli": "^2.27.0",
+    "@types/node": "^20.10.0",
+    "@typescript-eslint/eslint-plugin": "^6.15.0",
+    "@typescript-eslint/parser": "^6.15.0",
+    "@vitest/coverage-v8": "^1.0.0",
+    "eslint": "^8.56.0",
+    "eslint-config-prettier": "^9.1.0",
+    "prettier": "^3.1.1",
+    "tsup": "^8.0.1",
+    "typedoc": "^0.25.0",
+    "typescript": "^5.3.3",
+    "vitest": "^1.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
