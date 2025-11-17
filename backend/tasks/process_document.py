@@ -22,6 +22,7 @@ from backend.services.document_summary_service import DocumentSummaryService
 from backend.services.lightrag_service import get_lightrag_service
 from backend.config import settings
 import os
+import tempfile
 
 logger = logging.getLogger(__name__)
 
@@ -163,13 +164,17 @@ class ProcessDocumentTask(Task):
 
         finally:
             # Clean up temp file if it was downloaded from S3
-            if temp_file_path and temp_file_path.startswith("/tmp/mnemosyne_s3_"):
-                try:
-                    if os.path.exists(temp_file_path):
-                        os.unlink(temp_file_path)
-                        logger.info(f"Cleaned up temp file: {temp_file_path}")
-                except Exception as e:
-                    logger.warning(f"Failed to clean up temp file {temp_file_path}: {e}")
+            if temp_file_path:
+                # Check if file is in temp directory and has our prefix
+                temp_dir = tempfile.gettempdir()
+                if (temp_file_path.startswith(temp_dir) and
+                    "mnemosyne_s3_" in os.path.basename(temp_file_path)):
+                    try:
+                        if os.path.exists(temp_file_path):
+                            os.unlink(temp_file_path)
+                            logger.info(f"Cleaned up S3 temp file: {temp_file_path}")
+                    except Exception as e:
+                        logger.warning(f"Failed to clean up temp file {temp_file_path}: {e}")
 
             db.close()
 
