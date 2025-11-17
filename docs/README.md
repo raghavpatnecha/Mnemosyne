@@ -6,6 +6,7 @@ Welcome to Mnemosyne - an open-source RAG-as-a-Service platform.
 
 - [Main README](../README.md) - Project overview and quick start
 - [Python SDK](../sdk/README.md) - Python SDK documentation
+- [TypeScript SDK](../sdk-ts/README.md) - TypeScript SDK documentation
 - [API Documentation](https://api.mnemosyne.dev/docs) - Interactive API docs
 
 ## User Documentation
@@ -13,7 +14,8 @@ Welcome to Mnemosyne - an open-source RAG-as-a-Service platform.
 For users of the Mnemosyne platform:
 
 - **[Getting Started](user/getting-started.md)** - Quick start guide and basic usage
-- **[Python SDK Guide](user/sdk-guide.md)** - SDK installation and usage ⭐
+- **[Python SDK Guide](user/sdk-guide.md)** - Python SDK installation and usage ⭐
+- **[TypeScript SDK Guide](user/sdk-typescript-guide.md)** - TypeScript SDK installation and usage ⭐
 - **[Configuration Guide](user/configuration.md)** - Environment variables and setup
 - **[API Reference](user/api-reference.md)** - Complete API specification
 - **[Architecture](user/architecture.md)** - System architecture overview
@@ -25,16 +27,18 @@ For users of the Mnemosyne platform:
 For contributors and developers:
 
 - **[Product Requirements](developer/product-requirements.md)** - PRD and vision
+- **[TypeScript SDK Plan](developer/typescript-sdk-plan.md)** - TypeScript SDK implementation
 - **[Research](developer/research.md)** - Initial research and analysis
 - **[Setup Guide](developer/setup.md)** - Development environment setup
 - **[Reference Analysis](developer/reference-analysis.md)** - Technical reference docs
 
 ## SDK Documentation
 
-Complete Python SDK documentation and examples:
+Official SDKs for interacting with Mnemosyne API:
 
-- **[SDK Guide](user/sdk-guide.md)** - Quick SDK reference (start here!)
-- **[Full SDK Docs](../sdk/README.md)** - Complete SDK documentation (473 lines)
+### Python SDK
+- **[Python SDK Guide](user/sdk-guide.md)** - Quick SDK reference (start here!)
+- **[Full Python SDK Docs](../sdk/README.md)** - Complete SDK documentation
 - **[SDK Examples](../sdk/examples/)** - 6 working code examples
   - `basic_retrieval.py` - All 5 search modes
   - `ingestion_workflow.py` - Document upload workflow
@@ -42,6 +46,12 @@ Complete Python SDK documentation and examples:
   - `async_streaming.py` - Async/await usage
   - `video_ingestion.py` - YouTube & MP4 videos
   - `langchain_integration.py` - LangChain integration
+
+### TypeScript SDK
+- **[TypeScript SDK Guide](user/sdk-typescript-guide.md)** - Quick SDK reference (start here!)
+- **[Full TypeScript SDK Docs](../sdk-ts/README.md)** - Complete SDK documentation
+- **Platform Support**: Node.js 18+ and modern browsers
+- **Features**: Zero dependencies, full TypeScript support, streaming, dual format (CJS/ESM)
 
 ## Archive
 
@@ -58,6 +68,7 @@ mnemosyne/
 ├── backend/         # FastAPI backend (RAG-as-a-Service)
 ├── src/            # Legacy Medium articles search (deprecated)
 ├── sdk/            # Python SDK
+├── sdk-ts/         # TypeScript SDK
 ├── docs/           # Documentation (you are here)
 ├── examples/       # Usage examples
 └── tests/          # Test suites

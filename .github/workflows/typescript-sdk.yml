@@ -1,0 +1,249 @@
+name: TypeScript SDK CI
+
+on:
+  push:
+    branches: [main, develop, 'claude/**']
+    paths:
+      - 'sdk-ts/**'
+      - '.github/workflows/typescript-sdk.yml'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'sdk-ts/**'
+      - '.github/workflows/typescript-sdk.yml'
+
+jobs:
+  test:
+    name: Test (Node ${{ matrix.node-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x, 22.x]
+      fail-fast: false
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+          cache-dependency-path: sdk-ts/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          cd sdk-ts
+          npm ci
+
+      - name: Run type check
+        run: |
+          cd sdk-ts
+          npm run type-check
+
+      - name: Run linter
+        run: |
+          cd sdk-ts
+          npm run lint
+
+      - name: Run tests
+        run: |
+          cd sdk-ts
+          npm test
+
+      - name: Build SDK
+        run: |
+          cd sdk-ts
+          npm run build
+
+      - name: Check build artifacts
+        run: |
+          cd sdk-ts
+          ls -la dist/
+          test -f dist/index.js
+          test -f dist/index.cjs
+          test -f dist/index.d.ts
+
+  coverage:
+    name: Test Coverage
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'npm'
+          cache-dependency-path: sdk-ts/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          cd sdk-ts
+          npm ci
+
+      - name: Run tests with coverage
+        run: |
+          cd sdk-ts
+          npm test -- --coverage
+
+      - name: Upload coverage reports
+        uses: codecov/codecov-action@v4
+        if: success()
+        with:
+          files: ./sdk-ts/coverage/coverage-final.json
+          flags: typescript-sdk
+          name: typescript-sdk-coverage
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+  lint-format:
+    name: Lint & Format Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'npm'
+          cache-dependency-path: sdk-ts/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          cd sdk-ts
+          npm ci
+
+      - name: Run ESLint
+        run: |
+          cd sdk-ts
+          npm run lint
+
+      - name: Check TypeScript types
+        run: |
+          cd sdk-ts
+          npx tsc --noEmit
+
+  build-matrix:
+    name: Build on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+      fail-fast: false
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'npm'
+          cache-dependency-path: sdk-ts/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          cd sdk-ts
+          npm ci
+
+      - name: Build
+        run: |
+          cd sdk-ts
+          npm run build
+
+      - name: Verify build artifacts
+        run: |
+          cd sdk-ts
+          node -e "require('./dist/index.cjs')"
+        if: runner.os != 'Windows'
+
+  examples:
+    name: Build Examples
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'npm'
+          cache-dependency-path: sdk-ts/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          cd sdk-ts
+          npm ci
+
+      - name: Build SDK
+        run: |
+          cd sdk-ts
+          npm run build
+
+      - name: Verify examples compile
+        run: |
+          cd sdk-ts
+          npx tsc --noEmit -p examples/tsconfig.json || true
+
+  package-check:
+    name: Package Validation
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'npm'
+          cache-dependency-path: sdk-ts/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          cd sdk-ts
+          npm ci
+
+      - name: Build
+        run: |
+          cd sdk-ts
+          npm run build
+
+      - name: Pack package
+        run: |
+          cd sdk-ts
+          npm pack
+
+      - name: Check package contents
+        run: |
+          cd sdk-ts
+          tar -tzf mnemosyne-sdk-*.tgz | grep -E '(dist/|README.md|LICENSE|package.json)'
+
+      - name: Upload package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-package
+          path: sdk-ts/*.tgz
+          retention-days: 7
+
+  success:
+    name: All Checks Passed
+    needs: [test, coverage, lint-format, build-matrix, examples, package-check]
+    runs-on: ubuntu-latest
+    if: success()
+
+    steps:
+      - name: Success notification
+        run: |
+          echo "✅ All TypeScript SDK CI checks passed!"

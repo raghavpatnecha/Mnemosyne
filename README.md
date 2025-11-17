@@ -17,14 +17,26 @@ Mnemosyne is an intelligent, production-ready RAG (Retrieval-Augmented Generatio
 - **Simple API**: Just 4 core endpoints - collections, documents, retrievals, and chat
 - **Multiple Search Modes**: Semantic, keyword, hybrid, hierarchical, and graph-based (LightRAG)
 - **Multimodal**: PDF, DOCX, TXT, MP4 videos, YouTube, Excel, images, and audio
-- **Python SDK**: Type-safe, async-ready client library ([see SDK docs](sdk/README.md))
+- **Multi-Language SDKs**: Python and TypeScript/JavaScript ([Python](sdk/README.md) | [TypeScript](sdk-ts/README.md))
 - **Streaming Chat**: Real-time conversational AI with RAG context
 - **Self-Hostable**: Run on your infrastructure with Docker Compose
 - **Production-Ready**: PostgreSQL, Redis, Celery, monitoring, and backups included
 
 ## Quick Start
 
-### Option 1: Python SDK
+### Option 1: SDK (Python or TypeScript)
+
+**Python:**
+```bash
+pip install mnemosyne-sdk
+```
+
+**TypeScript/JavaScript:**
+```bash
+npm install @mnemosyne/sdk
+```
+
+#### Python Example
 
 ```bash
 pip install mnemosyne-sdk
@@ -58,7 +70,41 @@ for chunk in client.chat.chat(message="Explain transformers", stream=True):
     print(chunk, end="")
 ```
 
-See [SDK Documentation](sdk/README.md) for complete guide.
+#### TypeScript/JavaScript Example
+```typescript
+import { MnemosyneClient } from '@mnemosyne/sdk';
+
+const client = new MnemosyneClient({ apiKey: 'mn_...' });
+
+// Create collection
+const collection = await client.collections.create({
+  name: 'Research Papers'
+});
+
+// Upload document
+const doc = await client.documents.create(
+  collection.id,
+  'paper.pdf',
+  { topic: 'AI' }
+);
+
+// Search (5 modes: semantic, keyword, hybrid, hierarchical, graph)
+const results = await client.retrievals.retrieve({
+  query: 'What are transformers?',
+  mode: 'hybrid',
+  top_k: 10
+});
+
+// Streaming chat
+for await (const chunk of client.chat.chat({
+  message: 'Explain transformers',
+  stream: true
+})) {
+  process.stdout.write(chunk);
+}
+```
+
+**📚 SDK Documentation**: [Python SDK](sdk/README.md) | [TypeScript SDK](sdk-ts/README.md)
 
 ### Option 2: Self-Host with Docker
 
@@ -95,9 +141,11 @@ curl -X POST "http://localhost:8000/api/v1/auth/register" \
 - **[Architecture](docs/user/architecture.md)** - System design and components
 - **[Deployment](docs/user/deployment.md)** - Production deployment guide
 
-### 💻 SDK & Examples
-- **[Python SDK](sdk/README.md)** - Complete SDK documentation (473 lines)
-- **[SDK Examples](sdk/examples/)** - 6 working code examples
+### 💻 SDKs & Examples
+- **[Python SDK](sdk/README.md)** - Complete Python SDK documentation (473 lines)
+- **[TypeScript SDK](sdk-ts/README.md)** - Complete TypeScript/JavaScript SDK documentation (460+ lines)
+- **[Python Examples](sdk/examples/)** - 6 working Python code examples
+- **[TypeScript Examples](sdk-ts/examples/)** - 5 working TypeScript code examples
 
 ### 🔧 Developer Docs
 - **[Developer Guide](CLAUDE.md)** - Contributing and development guidelines

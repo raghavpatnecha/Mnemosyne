@@ -1,0 +1,32 @@
+# Source files
+src/
+tests/
+examples/
+
+# Configuration
+tsconfig.json
+tsup.config.ts
+vitest.config.ts
+.eslintrc.js
+.prettierrc
+
+# CI/CD
+.github/
+
+# Development
+.changeset/
+coverage/
+*.tsbuildinfo
+
+# Documentation source
+docs/
+
+# IDE
+.vscode/
+.idea/
+
+# Git
+.git/
+.gitignore
+
+# Only include dist and essential files

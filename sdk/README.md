@@ -363,7 +363,7 @@ except APIError as e:
 
 ```bash
 export MNEMOSYNE_API_KEY="mn_..."
-export MNEMOSYNE_BASE_URL="https://api.mnemosyne.ai"
+export MNEMOSYNE_BASE_URL="https://api.mnemosyne.ai/api/v1"
 ```
 
 ### Custom Configuration
@@ -371,7 +371,7 @@ export MNEMOSYNE_BASE_URL="https://api.mnemosyne.ai"
 ```python
 client = Client(
     api_key="mn_...",
-    base_url="https://api.mnemosyne.ai",
+    base_url="https://api.mnemosyne.ai/api/v1",
     timeout=120.0,  # seconds
     max_retries=5
 )
