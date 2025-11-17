@@ -1,5 +1,11 @@
 # Mnemosyne Production Deployment Guide
 
+**Quick Links:**
+- [Cloud Deployment Guide](deployment-cloud.md) - AWS, GCP, DigitalOcean, Railway, etc.
+- [Multi-Tenancy Documentation](../developer/multi-tenancy.md) - User isolation and security
+
+---
+
 ## Prerequisites
 
 1. **Server Requirements**:
@@ -15,6 +21,7 @@
 
 3. **API Keys**:
    - OpenAI API key
+   - (Optional) S3 credentials (AWS, DigitalOcean Spaces, etc.)
    - (Optional) Other service API keys
 
 ## Quick Start
@@ -51,13 +58,40 @@ OPENAI_API_KEY=sk-your-key-here
 
 # Update CORS origins
 CORS_ORIGINS=["https://yourdomain.com"]
+
+# Storage Configuration (RECOMMENDED: Use S3 for production)
+STORAGE_BACKEND=s3  # or "local" for development
+
+# S3 Storage (if STORAGE_BACKEND=s3)
+S3_BUCKET_NAME=mnemosyne-documents
+S3_ACCESS_KEY_ID=your-s3-access-key
+S3_SECRET_ACCESS_KEY=your-s3-secret-key
+S3_REGION=us-east-1  # or your region
+S3_ENDPOINT_URL=  # Leave empty for AWS S3
+# For DigitalOcean Spaces: https://nyc3.digitaloceanspaces.com
+# For MinIO: http://minio:9000
+S3_PRESIGNED_URL_EXPIRY=3600  # 1 hour
 ```
+
+**Storage Backend Options:**
+
+| Backend | When to Use | Configuration |
+|---------|------------|---------------|
+| **S3** ✅ | Production deployments | AWS S3, DigitalOcean Spaces, MinIO |
+| **Local** | Development only | File system storage |
+
+**S3 Benefits:**
+- ✅ Scalable to millions of documents
+- ✅ Automatic backups and versioning
+- ✅ Cost-effective ($0.023/GB/month on AWS)
+- ✅ CDN integration available
+- ✅ Multi-user isolation built-in
 
 ### 3. Deploy
 
 ```bash
 # Run deployment script
-./scripts/deploy.sh
+./deploy.sh
 ```
 
 This will:
