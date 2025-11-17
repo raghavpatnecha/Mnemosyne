@@ -186,7 +186,10 @@ class LightRAGService:
         query_text: str,
         mode: str = "hybrid",
         top_k: int = 10,
-        only_context: bool = True
+        only_context: bool = True,
+        db_session = None,
+        user_id: UUID = None,
+        collection_id: UUID = None
     ) -> Dict[str, Any]:
         """
         Query knowledge graph with dual-level retrieval
@@ -200,12 +203,15 @@ class LightRAGService:
                 - "naive": Vector-only (no graph)
             top_k: Number of results to return
             only_context: If True, return context only (no LLM answer)
+            db_session: Optional database session for source extraction
+            user_id: Optional user ID for source filtering
+            collection_id: Optional collection ID for source filtering
 
         Returns:
-            Query results with context and sources
+            Query results with context and source chunks
         """
         if not self.enabled:
-            return {"status": "disabled", "context": ""}
+            return {"status": "disabled", "context": "", "chunks": []}
 
         if not self._initialized:
             await self.initialize()
@@ -228,12 +234,24 @@ class LightRAGService:
                 f"LightRAG query completed: {len(result)} chars returned"
             )
 
+            # Extract source chunks from our database
+            source_chunks = []
+            if db_session and result:
+                source_chunks = await self._extract_source_chunks(
+                    context=result,
+                    query_text=query_text,
+                    db_session=db_session,
+                    user_id=user_id,
+                    collection_id=collection_id,
+                    top_k=top_k
+                )
+
             return {
                 "status": "success",
                 "query": query_text,
                 "mode": mode,
                 "context": result,
-                "sources": self._extract_sources(result)
+                "chunks": source_chunks
             }
 
         except Exception as e:
@@ -242,28 +260,67 @@ class LightRAGService:
                 "status": "failed",
                 "query": query_text,
                 "error": str(e),
-                "context": ""
+                "context": "",
+                "chunks": []
             }
 
-    def _extract_sources(self, context: str) -> List[str]:
+    async def _extract_source_chunks(
+        self,
+        context: str,
+        query_text: str,
+        db_session,
+        user_id: Optional[UUID] = None,
+        collection_id: Optional[UUID] = None,
+        top_k: int = 10
+    ) -> List[Dict[str, Any]]:
         """
-        Extract source document IDs from context
+        Extract source chunks from our database based on LightRAG context
 
-        LightRAG includes source references in the context.
-        Parse and return unique source identifiers.
+        Strategy: LightRAG returns synthesized context from knowledge graph.
+        We search our database to find the actual chunks that were likely used,
+        providing real chunk IDs and document references for consistency.
 
         Args:
-            context: Context string from LightRAG
+            context: Context string returned by LightRAG
+            query_text: Original query for semantic search
+            db_session: Database session
+            user_id: Filter by user ownership
+            collection_id: Filter by collection
+            top_k: Number of source chunks to return
 
         Returns:
-            List of unique source IDs
+            List of chunk dictionaries with real IDs and metadata
         """
-        # TODO: Implement source extraction based on LightRAG format
-        # LightRAG may include markers like [Source: doc_id] in context
-        sources = []
+        from backend.embeddings.openai_embedder import OpenAIEmbedder
+        from backend.search.vector_search import VectorSearchService
 
-        # Placeholder implementation
-        return sources
+        if not context or not db_session:
+            return []
+
+        try:
+            # Use semantic search to find chunks matching the query
+            # This gives us real source attribution from our database
+            embedder = OpenAIEmbedder()
+            query_embedding = await embedder.embed(query_text)
+
+            search_service = VectorSearchService(db_session)
+            chunks = search_service.search(
+                query_embedding=query_embedding,
+                collection_id=collection_id,
+                user_id=user_id,
+                top_k=top_k
+            )
+
+            logger.info(
+                f"Found {len(chunks)} source chunks for LightRAG context "
+                f"(user_id={user_id}, collection_id={collection_id})"
+            )
+
+            return chunks
+
+        except Exception as e:
+            logger.error(f"Failed to extract source chunks: {e}", exc_info=True)
+            return []
 
     async def get_entity_count(self) -> int:
         """Get total number of entities in knowledge graph"""

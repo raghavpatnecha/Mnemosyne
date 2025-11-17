@@ -8,6 +8,7 @@ Improves query understanding and retrieval accuracy through:
 """
 
 from typing import Union, List
+import json
 from openai import AsyncOpenAI
 from backend.config import settings
 from backend.services.cache_service import CacheService
@@ -58,7 +59,8 @@ class QueryReformulationService:
         cached = self.cache.get_reformulated_query(query, mode)
         if cached:
             if mode == "multi":
-                return cached.split("|")
+                # Use JSON instead of "|" separator to avoid ambiguity
+                return json.loads(cached)
             return cached
 
         try:
@@ -72,8 +74,8 @@ class QueryReformulationService:
                 logger.warning(f"Unknown reformulation mode: {mode}")
                 return query if mode != "multi" else [query]
 
-            # Cache result
-            cache_value = "|".join(result) if mode == "multi" else result
+            # Cache result - use JSON for multi mode to avoid separator ambiguity
+            cache_value = json.dumps(result) if mode == "multi" else result
             self.cache.set_reformulated_query(query, mode, cache_value)
 
             return result
@@ -103,7 +105,8 @@ Expanded query:"""
                 model=settings.CHAT_MODEL,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.3,
-                max_tokens=100
+                max_tokens=100,
+                timeout=10.0  # Prevent hanging requests
             )
 
             expanded = response.choices[0].message.content.strip()
@@ -136,7 +139,8 @@ Clarified query:"""
                 model=settings.CHAT_MODEL,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.1,  # Lower temperature for clarity
-                max_tokens=100
+                max_tokens=100,
+                timeout=10.0  # Prevent hanging requests
             )
 
             clarified = response.choices[0].message.content.strip()
@@ -173,7 +177,8 @@ Alternative queries:"""
                 model=settings.CHAT_MODEL,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.7,
-                max_tokens=200
+                max_tokens=200,
+                timeout=10.0  # Prevent hanging requests
             )
 
             # Parse response
@@ -243,7 +248,8 @@ Reformulated query:"""
                 model=settings.CHAT_MODEL,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.3,
-                max_tokens=150
+                max_tokens=150,
+                timeout=10.0  # Prevent hanging requests
             )
 
             reformulated = response.choices[0].message.content.strip()

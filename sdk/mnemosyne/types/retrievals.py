@@ -16,7 +16,11 @@ class RetrievalRequest(BaseModel):
     mode: RetrievalMode = Field(default="hybrid", description="Retrieval mode")
     top_k: int = Field(default=10, ge=1, le=100, description="Number of results to return")
     collection_id: Optional[UUID] = Field(None, description="Filter by collection ID")
-    rerank: bool = Field(default=False, description="Enable reranking (future feature)")
+    rerank: bool = Field(default=False, description="Enable reranking with configured reranker")
+    enable_graph: bool = Field(
+        default=False,
+        description="Enhance results with LightRAG knowledge graph (adds relationships and context)"
+    )
     metadata_filter: Optional[Dict] = Field(None, description="Filter by document metadata")
 
 
@@ -49,3 +53,11 @@ class RetrievalResponse(BaseModel):
     mode: str
     results: list[ChunkResult]
     total_results: int
+    graph_enhanced: bool = Field(
+        default=False,
+        description="Whether results were enhanced with knowledge graph"
+    )
+    graph_context: Optional[str] = Field(
+        None,
+        description="Additional context from knowledge graph (if graph enhancement enabled)"
+    )

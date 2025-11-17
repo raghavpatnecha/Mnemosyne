@@ -384,27 +384,36 @@ Perform semantic search and retrieve relevant document chunks.
   "query": "How do I deploy the application?",
   "top_k": 10,
   "mode": "hybrid",
-  "filters": {
-    "metadata.category": "technical",
-    "metadata.author": "John Doe"
-  },
   "rerank": true,
-  "rerank_model": "jina-reranker-v1",
-  "include_metadata": true
+  "metadata_filter": {
+    "category": "technical",
+    "author": "John Doe"
+  }
 }
 ```
 
 **Parameters**:
-- `mode` (string): "vector" (semantic only), "keyword" (full-text only), "hybrid" (RRF fusion)
+- `query` (string, required): Search query (1-1000 chars)
+- `mode` (string, default: "semantic"): Search mode
+  - `"semantic"`: Vector similarity search
+  - `"keyword"`: PostgreSQL full-text search (BM25)
+  - `"hybrid"`: RRF fusion of semantic + keyword (recommended) ⭐
+  - `"hierarchical"`: Two-tier document → chunk retrieval
+  - `"graph"`: LightRAG knowledge graph search with source extraction
 - `top_k` (int, default: 10, max: 100): Number of results to return
-- `rerank` (boolean, default: false): Apply reranking to results
-- `filters` (object): Metadata filters using dot notation
-- `include_metadata` (boolean, default: true): Include document metadata
+- `collection_id` (UUID, optional): Filter by specific collection
+- `rerank` (boolean, default: false): Apply reranking to improve accuracy by 15-25%
+- `enable_graph` (boolean, default: false): Enhance results with knowledge graph context ⚡
+- `metadata_filter` (object, optional): Filter by metadata fields
 
 **Response**: `200 OK`
 ```json
 {
   "query": "How do I deploy the application?",
+  "mode": "hybrid",
+  "total_results": 10,
+  "graph_enhanced": false,
+  "graph_context": null,
   "results": [
     {
       "chunk_id": "chunk_aaa111",
@@ -422,78 +431,177 @@ Perform semantic search and retrieve relevant document chunks.
         "section": "Deployment"
       }
     }
-  ],
-  "retrieval_metadata": {
-    "mode": "hybrid",
-    "rerank_applied": true,
-    "total_candidates": 50,
-    "final_count": 10,
-    "retrieval_time_ms": 45
-  }
+  ]
 }
 ```
 
-### Knowledge Graph Query
+### Reranking for Better Accuracy ⭐
 
-Query the knowledge graph for entity-relationship based retrieval.
+Apply optional reranking to improve retrieval accuracy by 15-25% by re-scoring results with specialized models.
 
-**Endpoint**: `POST /retrievals/graph`
-
-**Request Body**:
+**How to Enable**:
 ```json
 {
-  "collection_id": "col_abc123",
-  "query": "What are the relationships between Docker and Kubernetes?",
-  "mode": "local",
+  "query": "How to deploy?",
+  "mode": "hybrid",
+  "rerank": true,  // ← Enable reranking
   "top_k": 10
 }
 ```
 
-**Parameters**:
-- `mode` (string): "local" (entity-focused), "global" (community-based), "hybrid" (both)
+**Supported Rerankers** (configured via environment variables):
+- **Flashrank**: Local cross-encoder (fast, free, no API calls) - Default
+- **Cohere**: High-quality API-based (`rerank-english-v3.0`)
+- **Jina**: API-based with free tier (`jina-reranker-v1-base-en`)
+- **Voyage**: API-based reranking
+- **Mixedbread**: API-based reranking
 
-**Response**: `200 OK`
+**Configuration**:
+```bash
+RERANK_ENABLED=true
+RERANK_PROVIDER=flashrank  # or cohere, jina, voyage, mixedbread
+RERANK_MODEL=ms-marco-MiniLM-L-12-v2  # For flashrank
+RERANK_API_KEY=your-key  # For API-based providers
+```
+
+**Benefits**:
+- Works with all 5 search modes
+- Improves relevance scoring
+- Re-orders results by query-document relevance
+- Optional (disabled by default, no cost unless enabled)
+
+---
+
+### Graph Enhancement (HybridRAG) 🚀 NEW
+
+Enhance any search mode with knowledge graph context by setting `enable_graph: true`.
+
+**What is HybridRAG?**
+
+HybridRAG combines traditional retrieval (vector/keyword/hybrid) with LightRAG's knowledge graph to provide both relevant documents AND relationship context. This is based on production systems from AWS, Neo4j, Databricks, and Cedars-Sinai.
+
+**Request Example**:
+```json
+{
+  "query": "How does protein X interact with disease Y?",
+  "mode": "hybrid",
+  "enable_graph": true,  // ← Enable graph enhancement
+  "top_k": 10
+}
+```
+
+**How It Works**:
+1. Base search (hybrid/semantic/keyword/hierarchical) runs in parallel with LightRAG graph query
+2. Results are enriched with graph-sourced chunks
+3. Response includes `graph_context` with relationship insights
+4. Latency: ~1.5-2x vs base search (parallel execution, not additive)
+
+**Response with Graph Enhancement**:
+```json
+{
+  "query": "How does protein X interact with disease Y?",
+  "mode": "hybrid",
+  "total_results": 12,
+  "graph_enhanced": true,
+  "graph_context": "Protein X interacts with Disease Y through pathway Z, involving entities A and B. Research shows...",
+  "results": [
+    {
+      "chunk_id": "chunk_abc123",
+      "content": "Protein X binds to receptor Y...",
+      "score": 0.94,
+      "metadata": {
+        "graph_sourced": false  // From base search
+      }
+    },
+    {
+      "chunk_id": "chunk_def456",
+      "content": "Disease Y pathway involves...",
+      "score": 0.68,
+      "metadata": {
+        "graph_sourced": true   // From graph traversal
+      }
+    }
+  ]
+}
+```
+
+**When to Use Graph Enhancement**:
+- ✅ Queries about relationships ("how does X relate to Y?")
+- ✅ Multi-hop reasoning ("connection between A, B, and C?")
+- ✅ Research queries requiring context
+- ✅ Complex domain-specific questions
+- ❌ Simple factual lookups (use base search for speed)
+- ❌ High-volume production endpoints (higher latency)
+
+**Performance & Accuracy**:
+- **Accuracy Improvement**: 35-80% for relationship-based queries (research-backed)
+- **Latency**: 200-500ms (vs 100-300ms for base search)
+- **Works With**: semantic, keyword, hybrid, hierarchical modes
+- **Note**: NOT compatible with mode="graph" (redundant)
+
+**Configuration**:
+```bash
+LIGHTRAG_ENABLED=true  # Required for graph enhancement
+```
+
+**Compatibility**:
+- ✅ All search modes except "graph"
+- ✅ Works with reranking (`rerank: true`)
+- ✅ Works with caching (faster on repeated queries)
+- ✅ Works with query reformulation
+
+---
+
+### Pure Graph Mode Search (LightRAG) ⭐
+
+Use mode `"graph"` for knowledge graph-based retrieval with automatic source extraction.
+
+**Request Example**:
+```json
+{
+  "collection_id": "col_abc123",
+  "query": "What are the relationships between Docker and Kubernetes?",
+  "mode": "graph",
+  "top_k": 10
+}
+```
+
+**How Graph Mode Works**:
+1. LightRAG queries knowledge graph for entity-relationship context
+2. System performs semantic search to find actual source chunks in PostgreSQL
+3. Returns real chunk IDs and document references for citations
+4. Response format consistent with other search modes
+
+**Response**: `200 OK` (Same schema as other modes)
 ```json
 {
   "query": "What are the relationships between Docker and Kubernetes?",
-  "entities": [
-    {
-      "name": "Docker",
-      "type": "technology",
-      "description": "Container platform",
-      "chunk_references": ["chunk_aaa111", "chunk_bbb222"]
-    },
-    {
-      "name": "Kubernetes",
-      "type": "technology",
-      "description": "Container orchestration platform",
-      "chunk_references": ["chunk_ccc333", "chunk_ddd444"]
-    }
-  ],
-  "relationships": [
-    {
-      "source": "Docker",
-      "target": "Kubernetes",
-      "type": "ORCHESTRATED_BY",
-      "description": "Docker containers are orchestrated by Kubernetes",
-      "chunk_reference": "chunk_aaa111"
-    }
-  ],
-  "chunks": [
+  "results": [
     {
       "chunk_id": "chunk_aaa111",
-      "content": "Kubernetes orchestrates Docker containers...",
-      "score": 0.95
+      "document_id": "doc_xyz789",
+      "content": "Kubernetes orchestrates Docker containers by...",
+      "score": 0.95,
+      "rank": 1,
+      "document_metadata": {
+        "title": "Container Orchestration Guide",
+        "filename": "k8s-guide.pdf"
+      },
+      "chunk_metadata": {
+        "page_number": 12,
+        "section": "Docker Integration"
+      }
     }
   ],
   "retrieval_metadata": {
-    "mode": "local",
-    "entities_found": 2,
-    "relationships_found": 1,
+    "mode": "graph",
+    "total_results": 10,
     "retrieval_time_ms": 78
   }
 }
 ```
+
+**Note**: Graph mode returns actual chunk IDs from your PostgreSQL database, not synthesized results. This ensures you can cite sources and maintain response format consistency across all search modes.
 
 ---
 

@@ -7,142 +7,152 @@
 [![](https://img.shields.io/github/license/sourcerer-io/hall-of-fame.svg?colorB=ff0000)](https://github.com/raghavpatnecha/Mnemosyne/blob/main/LICENSE)  [![](https://img.shields.io/badge/Raghav-Patnecha-brightgreen.svg?colorB=00ff00)](https://github.com/raghavpatnecha) [![](https://img.shields.io/badge/Akshay-Bahadur-brightgreen.svg?colorB=00ff00)](https://akshaybahadur.com)
 
 # Mnemosyne
-Mnemosyne is an intelligent conversational search agent for Medium articles, named after the Greek goddess of memory.
 
-## Description 🛰️
+**Open-Source RAG-as-a-Service Platform**
 
-Mnemosyne leverages Generative AI and other machine learning techniques to provide an intuitive, conversation-based interface for searching and exploring articles. Whether you're looking for specific information or wanting to dive deep into a topic, Mnemosyne acts as your personal search engine, offering relevant content and insights from a vast repository of your articles.
+Mnemosyne is an intelligent, production-ready RAG (Retrieval-Augmented Generation) platform that makes building AI-powered search and chat applications simple. Upload your documents, search semantically, and build conversational AI - all through a clean API and Python SDK.
 
-## Features 👨‍🔬
+## Features
 
-- Semantic Search through saved Medium Articles
-- OpenAI and Ollama with Langchain integration for QnA
-- Firecrawl integration for crawling articles
-- MongoDB integration for building vector and text data store
-- Dual mode operation with StreamingStdOutCallbackHandler and AsyncIteratorCallbackHandler()
-- FastAPI and Quart support for flexible API deployment
-- Streaming responses with SSE (Server-Sent Events)
+- **Simple API**: Just 4 core endpoints - collections, documents, retrievals, and chat
+- **Multiple Search Modes**: Semantic, keyword, hybrid, hierarchical, and graph-based (LightRAG)
+- **Multimodal**: PDF, DOCX, TXT, MP4 videos, YouTube, Excel, images, and audio
+- **Python SDK**: Type-safe, async-ready client library ([see SDK docs](sdk/README.md))
+- **Streaming Chat**: Real-time conversational AI with RAG context
+- **Self-Hostable**: Run on your infrastructure with Docker Compose
+- **Production-Ready**: PostgreSQL, Redis, Celery, monitoring, and backups included
 
-## Getting Started 🦄
+## Quick Start
 
-### Installation
+### Option 1: Python SDK
 
-1. Clone the repository:
-    ```bash
-    git clone https://github.com/raghavpatnecha/mnemosyne.git
-    cd mnemosyne
-    ```
+```bash
+pip install mnemosyne-sdk
+```
 
-2. Install dependencies:  
-   You can install Conda for Python to resolve machine learning dependencies.
-    ```bash
-    pip install -r requirements.txt
-    ```
+```python
+from mnemosyne import Client
 
----
+# Initialize
+client = Client(api_key="mn_...")
 
-### Configuration 🔱
+# Create collection
+collection = client.collections.create(name="Research Papers")
 
-The main configuration for the project is done in the `src/config.py` file. Here's how you can configure it:
+# Upload document
+doc = client.documents.create(
+    collection_id=collection.id,
+    file="paper.pdf",
+    metadata={"topic": "AI"}
+)
 
-- **MongoDB Settings**:  
-  Set up your MongoDB connection string and database name.
-  
-- **OpenAI/Ollama Settings**:  
-  Provide your API keys for OpenAI and change the paramenters below based on your needs:
-    ```
-    class OPENAI:
-        API_KEY: str = ""
+# Search (5 modes: semantic, keyword, hybrid, hierarchical, graph)
+results = client.retrievals.retrieve(
+    query="What are transformers?",
+    mode="hybrid",
+    top_k=10
+)
 
-    class LLM:
-        MODEL_NAME: str = "gpt-4o-mini" #mistral,llama3.2
-        TOKEN_LIMIT: int = 125000
-        TEMPERATURE: float = 0.1
-        OPENAI_TIMEOUT: int = 20 ```
-  
-- **Firecrawl Settings**:  
-  Configure how often the system should crawl Medium for new articles.
+# Chat
+for chunk in client.chat.chat(message="Explain transformers", stream=True):
+    print(chunk, end="")
+```
 
----
+See [SDK Documentation](sdk/README.md) for complete guide.
 
-### Usage 🗼
+### Option 2: Self-Host with Docker
 
-#### Running the Application
+```bash
+# Clone repository
+git clone https://github.com/raghavpatnecha/Mnemosyne.git
+cd Mnemosyne
 
-You can run the application in **Safe Mode** or **Unsafe Mode** . Safe Mode ensures strict, reliable operations, while Unsafe Mode offers faster processing but with some risks.
+# Configure environment
+cp .env.example .env
+nano .env  # Add your OpenAI API key
 
-**FastAPI Server**
+# Start all services
+docker-compose up -d
 
-     
-         Run the FastAPI server
-         python src/fast_api.py
-       
-     
-**Quart Server**
+# API available at http://localhost:8000
+# Docs at http://localhost:8000/docs
+```
 
-        Run the Quart server
-        python src/app.py
+Register a user:
+```bash
+curl -X POST "http://localhost:8000/api/v1/auth/register" \
+  -H "Content-Type: application/json" \
+  -d '{"email": "user@example.com", "password": "password"}'
+```
 
+## Documentation
 
-#### API Endpoints
+### 📖 User Guides
+- **[Getting Started](docs/user/getting-started.md)** - Quick start guide
+- **[Python SDK Guide](docs/user/sdk-guide.md)** - SDK installation and usage ⭐
+- **[Configuration Guide](docs/user/configuration.md)** - Environment variables and setup
+- **[API Reference](docs/user/api-reference.md)** - Complete API specification
+- **[Architecture](docs/user/architecture.md)** - System design and components
+- **[Deployment](docs/user/deployment.md)** - Production deployment guide
 
-**Search API**:
+### 💻 SDK & Examples
+- **[Python SDK](sdk/README.md)** - Complete SDK documentation (473 lines)
+- **[SDK Examples](sdk/examples/)** - 6 working code examples
 
-    GET /mnemosyne/api/v1/search/{query}?mode={sync} #Generates complete answer before streaming
-    GET /mnemosyne/api/v1/search/{query}?mode={async} #Uses AsyncStreamingCallbackHandler , lower Latnecy
-    
-#### Core Components
-   - **config.py**: Configuration file containing settings for MongoDB, API keys, and other integrations.
-   - **app.py/fast_api.py**: app.py/fast_api.py: Web server implementations using Quart and FastAPI respectively
-   - **LLMService.py**: Uses factory and Strategy design patterns to ensure extensibility and maintainability:, contains code for text stream generation using langchain.
-   - **MnemsoyneService.py**: Manages the overall Mnemosyne service, coordinating between search.py and llmservice.py.
-   - **script.js** = Uses highlight.js and marked.js to parse repsone on frontend
+### 🔧 Developer Docs
+- **[Developer Guide](CLAUDE.md)** - Contributing and development guidelines
+- **[All Documentation](docs/)** - Complete documentation index
 
-----
-
-### Project Structure 🗄️
-
-    mnemosyne/
-    ├── src/
-    │   ├── app.py              # Quart server implementation
-    │   ├── config.py           # Configuration settings
-    │   ├── fast_api.py         # FastAPI server implementation
-    │   ├── api/
-    │   │   └── search.py       # Core search API implementation
-    │   ├── model/
-    │   │   └── model_utils.py  # Utility functions for models
-    │   ├── service/
-    │   │   ├── LLMService.py   # LLM integration service
-    │   │   ├── llm_utils.py    # LLM utility functions
-    │   │   ├── MnemsoyneService.py  # Main service coordination
-    │   │   ├── MongoService.py      # MongoDB service
-    │   │   └── mongo_utils.py       # MongoDB utility functions
-    │   ├── static/             # Static files
-    │   └── templates/          # HTML templates
-
-
-## License 🚔
-
-This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md) file for details.
-
-## Results 📊
-<p align="center"><img src="https://github.com/akshaybahadur21/BLOB/blob/master/mnemosyne.gif" height="450px"></p>
-
-## Contact 📱
-
-For any queries or suggestions, please open an issue on this GitHub repository or contact the maintainers directly.
-
-## Cite Us :pushpin:
+## Project Structure
 
 ```
-@article{raghavpatnecha_mnemosyne,
-author = [{Patnecha, Raghav}, {Bahadur, Akshay}],
-journal = {https://github.com/raghavpatnecha/Mnemosyne},
-month = {10},
-title = {{Mnemosyne}},
-year = {2024}
+mnemosyne/
+├── backend/         # FastAPI RAG-as-a-Service API
+│   ├── api/         # API endpoints (auth, collections, documents, retrievals, chat)
+│   ├── models/      # SQLAlchemy database models
+│   ├── schemas/     # Pydantic request/response models
+│   ├── services/    # Business logic (LightRAG, embeddings, search)
+│   ├── tasks/       # Celery background tasks
+│   └── main.py      # FastAPI application entry
+├── sdk/             # Python SDK for Mnemosyne API
+│   ├── mnemosyne/   # SDK source code
+│   └── examples/    # Usage examples
+├── docs/            # Documentation
+│   ├── user/        # User guides (getting started, API reference)
+│   ├── developer/   # Developer docs (architecture, contributing)
+│   └── archive/     # Historical planning and implementation docs
+├── src/             # [DEPRECATED] Legacy Medium articles search
+├── tests/           # Test suites
+└── docker-compose.yml  # Full stack deployment
+```
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Acknowledgments
+
+Built with:
+- [FastAPI](https://fastapi.tiangolo.com/) - Modern Python web framework
+- [LightRAG](https://github.com/HKUDS/LightRAG) - Graph-based RAG
+- [pgvector](https://github.com/pgvector/pgvector) - Vector similarity search for Postgres
+- [Docling](https://github.com/DS4SD/docling) - Document parsing
+- [Chonkie](https://github.com/chonkie-ai/chonkie) - Semantic chunking
+- [LiteLLM](https://github.com/BerriAI/litellm) - Unified LLM interface
+
+Inspired by:
+- [Ragie.ai](https://ragie.ai) - API design and developer experience
+- [SurfSense](https://github.com/yieldprotocol/surfsense) - Architecture patterns
+
+## Citation
+
+```bibtex
+@software{mnemosyne2024,
+  title = {Mnemosyne: Open-Source RAG-as-a-Service Platform},
+  author = {Patnecha, Raghav and Bahadur, Akshay},
+  year = {2024},
+  url = {https://github.com/raghavpatnecha/Mnemosyne}
 }
 ```
 
-###### Made with ❤️ and 🦙 by Akshay Bahadur and Raghav Patnecha
----
+Made with ❤️ by [Raghav Patnecha](https://github.com/raghavpatnecha) and [Akshay Bahadur](https://akshaybahadur.com)

@@ -112,3 +112,55 @@ async def get_current_superuser(
         raise http_403_forbidden("Superuser access required")
 
     return current_user
+
+
+# ==============================================================================
+# Service Singletons
+# ==============================================================================
+# Prevent expensive service re-initialization on every request
+# Using lru_cache to create singleton instances
+
+
+from functools import lru_cache
+
+
+@lru_cache(maxsize=1)
+def get_cache_service():
+    """
+    Get singleton CacheService instance
+
+    Prevents Redis reconnection on every request
+
+    Returns:
+        CacheService: Singleton cache service
+    """
+    from backend.services.cache_service import CacheService
+    return CacheService()
+
+
+@lru_cache(maxsize=1)
+def get_reranker_service():
+    """
+    Get singleton RerankerService instance
+
+    Prevents model reloading on every request
+
+    Returns:
+        RerankerService: Singleton reranker service
+    """
+    from backend.services.reranker_service import RerankerService
+    return RerankerService()
+
+
+@lru_cache(maxsize=1)
+def get_query_reformulation_service():
+    """
+    Get singleton QueryReformulationService instance
+
+    Prevents OpenAI client re-initialization on every request
+
+    Returns:
+        QueryReformulationService: Singleton query reformulation service
+    """
+    from backend.services.query_reformulation import QueryReformulationService
+    return QueryReformulationService()
