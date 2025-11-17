@@ -149,6 +149,8 @@ curl -X POST "http://localhost:8000/api/v1/auth/register" \
 
 ### 🔧 Developer Docs
 - **[Developer Guide](CLAUDE.md)** - Contributing and development guidelines
+- **[End-to-End Architecture](docs/developer/end-to-end-architecture.md)** - Complete system architecture from SDK to backend
+- **[Multi-Tenancy & User Separation](docs/developer/multi-tenancy.md)** - How user data isolation works ⭐
 - **[All Documentation](docs/)** - Complete documentation index
 
 ## Project Structure

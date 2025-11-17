@@ -20,6 +20,9 @@ This document provides a comprehensive view of the entire Mnemosyne stack, desig
 6. [Deployment Architecture](#deployment-architecture)
 7. [Performance & Scaling](#performance--scaling)
 
+**Related Documentation:**
+- [Multi-Tenancy & User Separation](multi-tenancy.md) - How user data isolation works across all layers
+
 ---
 
 ## Architecture Overview
