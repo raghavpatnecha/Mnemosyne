@@ -27,7 +27,7 @@ class BaseClient:
     def __init__(
         self,
         api_key: str,
-        base_url: str = "http://localhost:8000",
+        base_url: str = "http://localhost:8000/api/v1",
         timeout: float = 60.0,
         max_retries: int = 3,
     ):
@@ -36,7 +36,7 @@ class BaseClient:
 
         Args:
             api_key: Mnemosyne API key (required)
-            base_url: Base URL for API (default: http://localhost:8000)
+            base_url: Base URL for API (default: http://localhost:8000/api/v1)
             timeout: Request timeout in seconds (default: 60.0)
             max_retries: Maximum number of retries for failed requests (default: 3)
 

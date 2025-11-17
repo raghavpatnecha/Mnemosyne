@@ -42,7 +42,7 @@ class Client(BaseClient):
 
         Args:
             api_key: Mnemosyne API key (required)
-            base_url: Base URL for API (default: http://localhost:8000)
+            base_url: Base URL for API (default: http://localhost:8000/api/v1)
             timeout: Request timeout in seconds (default: 60.0)
             max_retries: Maximum number of retries for failed requests (default: 3)
 
@@ -54,7 +54,7 @@ class Client(BaseClient):
             >>> # or with custom settings:
             >>> client = Client(
             ...     api_key="mn_...",
-            ...     base_url="https://api.mnemosyne.ai",
+            ...     base_url="https://api.mnemosyne.ai/api/v1",
             ...     timeout=120.0,
             ...     max_retries=5
             ... )

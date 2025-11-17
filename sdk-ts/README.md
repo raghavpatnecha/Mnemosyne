@@ -79,7 +79,7 @@ export MNEMOSYNE_BASE_URL="http://localhost:8000/api/v1"  # Optional
 ```typescript
 const client = new MnemosyneClient({
   apiKey: 'mn_your_api_key',          // Required (or set env var)
-  baseUrl: 'http://localhost:8000/api/v1', // Optional, default: http://localhost:8000/
+  baseUrl: 'http://localhost:8000/api/v1', // Optional, default: http://localhost:8000/api/v1
   timeout: 60000,                      // Optional, default: 60 seconds
   maxRetries: 3,                       // Optional, default: 3
 });
