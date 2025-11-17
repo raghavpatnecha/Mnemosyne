@@ -61,14 +61,14 @@ export class ChatResource {
 
     if (request.stream) {
       // Stream response using SSE
-      const response = await this.client.requestStream('POST', '/chat', { json: request });
+      const response = await this.client.requestStream('POST', 'chat', { json: request });
 
       for await (const chunk of parseSSEStream(response)) {
         yield chunk;
       }
     } else {
       // Non-streaming response
-      const response = await this.client.request<ChatResponse>('POST', '/chat', { json: request });
+      const response = await this.client.request<ChatResponse>('POST', 'chat', { json: request });
       yield response.message;
     }
   }
@@ -90,7 +90,7 @@ export class ChatResource {
       offset: params?.offset || 0,
     };
 
-    return this.client.request<ChatSessionResponse[]>('GET', '/chat/sessions', {
+    return this.client.request<ChatSessionResponse[]>('GET', 'chat/sessions', {
       params: queryParams,
     });
   }

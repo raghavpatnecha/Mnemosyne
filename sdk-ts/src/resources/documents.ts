@@ -128,7 +128,7 @@ export class DocumentsResource {
       queryParams.status = params.status_filter;
     }
 
-    return this.client.request<DocumentListResponse>('GET', '/documents', {
+    return this.client.request<DocumentListResponse>('GET', 'documents', {
       params: queryParams,
     });
   }

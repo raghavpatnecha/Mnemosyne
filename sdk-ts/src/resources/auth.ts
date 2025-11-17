@@ -38,6 +38,6 @@ export class AuthResource {
     const data: RegisterRequest = { email, password };
 
     // Skip authentication for registration endpoint
-    return this.client.request<RegisterResponse>('POST', '/auth/register', { json: data }, true);
+    return this.client.request<RegisterResponse>('POST', 'auth/register', { json: data }, true);
   }
 }

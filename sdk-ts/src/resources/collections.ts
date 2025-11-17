@@ -35,7 +35,7 @@ export class CollectionsResource {
    * ```
    */
   async create(params: CollectionCreate): Promise<CollectionResponse> {
-    return this.client.request<CollectionResponse>('POST', '/collections', { json: params });
+    return this.client.request<CollectionResponse>('POST', 'collections', { json: params });
   }
 
   /**
@@ -57,7 +57,7 @@ export class CollectionsResource {
       offset: params?.offset || 0,
     };
 
-    return this.client.request<CollectionListResponse>('GET', '/collections', {
+    return this.client.request<CollectionListResponse>('GET', 'collections', {
       params: queryParams,
     });
   }

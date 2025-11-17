@@ -65,11 +65,11 @@ export class BaseClient {
 
     // Get base URL from config or environment
     // Note: User must include /api/v1 in the base URL (matching Python SDK behavior)
-    this.baseUrl = (
-      config.baseUrl ||
-      process.env.MNEMOSYNE_BASE_URL ||
-      'http://localhost:8000'
-    ).replace(/\/$/, ''); // Remove trailing slash
+    const rawBaseUrl =
+      config.baseUrl || process.env.MNEMOSYNE_BASE_URL || 'http://localhost:8000';
+
+    // Ensure baseUrl ends with / for correct URL resolution
+    this.baseUrl = rawBaseUrl.endsWith('/') ? rawBaseUrl : `${rawBaseUrl}/`;
 
     this.timeout = config.timeout || 60000; // 60 seconds default
     this.maxRetries = config.maxRetries || 3;
