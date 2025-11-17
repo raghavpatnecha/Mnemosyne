@@ -91,11 +91,17 @@ def _enrich_with_graph_context(
     enriched_results = base_results.copy()
     for graph_chunk in graph_chunks:
         if graph_chunk['chunk_id'] not in base_chunk_ids:
+            # Create a copy to avoid mutating original data (could be cached/shared)
+            graph_chunk_copy = graph_chunk.copy()
+
             # Adjust score to indicate graph contribution
-            graph_chunk['score'] = min(graph_chunk.get('score', 0.5), 0.7)
-            graph_chunk['metadata'] = graph_chunk.get('metadata', {})
-            graph_chunk['metadata']['graph_sourced'] = True
-            enriched_results.append(graph_chunk)
+            graph_chunk_copy['score'] = min(graph_chunk.get('score', 0.5), 0.7)
+
+            # Add graph_sourced marker (create metadata copy to avoid mutation)
+            graph_chunk_copy['metadata'] = graph_chunk.get('metadata', {}).copy()
+            graph_chunk_copy['metadata']['graph_sourced'] = True
+
+            enriched_results.append(graph_chunk_copy)
             base_chunk_ids.add(graph_chunk['chunk_id'])
 
     logger.info(
@@ -297,6 +303,9 @@ async def retrieve(
             raise http_400_bad_request("LightRAG is not enabled")
 
         graph_result = await run_graph_query()
+        if not graph_result:
+            raise http_400_bad_request("Graph mode failed - LightRAG returned no results")
+
         results = graph_result.get('chunks', [])
         graph_context = graph_result.get('answer', '')
         graph_enhanced = True
@@ -319,6 +328,12 @@ async def retrieve(
     else:
         # Base search only (no graph enhancement)
         results = await run_base_search()
+
+    # Enforce top_k limit (graph enrichment might have added extra chunks)
+    if len(results) > request.top_k:
+        original_count = len(results)
+        results = results[:request.top_k]
+        logger.debug(f"Trimmed results from {original_count} to top_k={request.top_k}")
 
     # Apply reranking if requested and available
     if request.rerank and reranker.is_available() and results:
