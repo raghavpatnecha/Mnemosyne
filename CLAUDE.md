@@ -2,7 +2,7 @@
 
 ## Overview
 
-Mnemosyne is an intelligent conversational search agent for Medium articles using semantic search, LLM integration (OpenAI/Ollama), and MongoDB vector storage. This document defines core development principles and workflows for all contributors.
+Mnemosyne is an open-source RAG-as-a-Service platform providing a clean API and Python SDK for building AI-powered search and chat applications. Built with FastAPI, PostgreSQL + pgvector, LightRAG, and Celery. This document defines core development principles and workflows for all contributors.
 
 ---
 
@@ -121,7 +121,7 @@ If a file approaches 300 lines:
 Execute these in parallel when possible:
 ```bash
 # Parallel execution example
-pytest tests/ && python -m pylint src/ && python src/app.py --check
+pytest tests/ && python -m pylint backend/ && python -m black backend --check
 ```
 
 ---
@@ -132,24 +132,36 @@ pytest tests/ && python -m pylint src/ && python src/app.py --check
 
 ```
 mnemosyne/
-├── src/
-│   ├── api/           # API endpoints and routing
-│   ├── service/       # Business logic services
-│   ├── model/         # Data models and utilities
-│   ├── static/        # Frontend assets
-│   └── templates/     # HTML templates
+├── backend/           # FastAPI RAG-as-a-Service API
+│   ├── api/           # API endpoints (auth, collections, documents, retrievals, chat)
+│   ├── models/        # SQLAlchemy database models
+│   ├── schemas/       # Pydantic request/response schemas
+│   ├── services/      # Business logic (LightRAG, embeddings, search)
+│   ├── tasks/         # Celery background tasks
+│   ├── core/          # Core utilities (security, exceptions)
+│   ├── middleware/    # Custom middleware (rate limiting)
+│   └── main.py        # FastAPI application entry
+├── sdk/               # Python SDK for Mnemosyne API
+│   ├── mnemosyne/     # SDK source code
+│   └── examples/      # Usage examples
+├── docs/              # Documentation
+│   ├── user/          # User-facing documentation
+│   ├── developer/     # Developer documentation
+│   └── archive/       # Historical docs
+├── src/               # [DEPRECATED] Legacy Medium search (kept for reference)
 ├── tests/             # Test suites
 ├── .claude/           # Claude Code configuration
 │   └── skills/        # Custom skills (memory, swarm)
 └── CLAUDE.md          # This file
 ```
 
-### Service Layer Pattern
+### Service Layer Architecture
 
-**Three-Service Architecture:**
-1. **MnemsoyneService**: Main orchestrator (coordinates LLM + Mongo)
-2. **LLMService**: LLM integration (OpenAI/Ollama with Strategy pattern)
-3. **MongoService**: Database operations (vector search, storage)
+**Multi-Layer Architecture:**
+1. **API Layer**: FastAPI endpoints (authentication, validation, routing)
+2. **Service Layer**: Business logic (document processing, search, chat)
+3. **Task Layer**: Celery async tasks (parsing, chunking, embedding, indexing)
+4. **Data Layer**: PostgreSQL + pgvector + Redis (storage, vectors, cache)
 
 ### Code Organization Rules
 
@@ -177,57 +189,77 @@ from langchain import ...
 from pymongo import ...
 
 # Internal modules
-from src.config import Config
-from src.service import ...
+from backend.config import settings
+from backend.services import ...
+from backend.models import ...
 ```
 
 ---
 
 ## Technical Standards
 
+### Database Operations
+
+**PostgreSQL + pgvector:**
+- Use SQLAlchemy ORM for all database operations
+- Store vector embeddings with pgvector extension (1536 dimensions)
+- Implement vector similarity search with cosine distance
+- Use Alembic for database migrations
+
+**Models:**
+- User, APIKey, Collection, Document (core models)
+- DocumentChunk (with vector embeddings)
+- ChatSession, ChatMessage (chat history)
+- All use UUID primary keys
+
 ### LLM Integration
 
 **Supported Models:**
-- OpenAI: gpt-4o-mini (default), gpt-4, gpt-3.5-turbo
-- Ollama: llama3.2, mistral
+- LiteLLM supports 150+ models (OpenAI, Anthropic, Ollama, etc.)
+- Default: OpenAI gpt-4o-mini
+- Embeddings: OpenAI text-embedding-3-large (1536d)
 
-**Strategy Pattern:**
-- Use `LLMStrategyFactory` to create appropriate strategy
-- Implement both OpenAI and Ollama strategies
-- Support async and sync streaming modes
+**Streaming:**
+- Server-Sent Events (SSE) for real-time streaming
+- AsyncIteratorCallbackHandler for async streaming
+- Streaming endpoints return EventSourceResponse
 
-**Streaming Modes:**
-- `SYNC`: Complete answer generation before streaming
-- `ASYNC`: Real-time streaming with AsyncIteratorCallbackHandler
+### Search Modes
 
-### MongoDB Operations
-
-**Vector Search:**
-- Use sentence-transformers for embeddings
-- Store vectors in MongoDB Atlas
-- Implement semantic search via vector similarity
-
-**Collections:**
-- Database: `Mnemosyne`
-- Collection: `medium`
-- Index vector fields appropriately
+**Five Search Modes:**
+1. **Semantic**: Vector similarity with pgvector
+2. **Keyword**: PostgreSQL full-text search (BM25)
+3. **Hybrid**: RRF fusion of semantic + keyword
+4. **Hierarchical**: Two-tier document → chunk retrieval
+5. **Graph**: LightRAG knowledge graph traversal
 
 ### API Design
 
 **Endpoint Pattern:**
 ```
-GET /mnemosyne/api/v1/{resource}/{identifier}?mode={sync|async}
+POST /api/v1/{resource}
+GET  /api/v1/{resource}
+GET  /api/v1/{resource}/{id}
+PATCH /api/v1/{resource}/{id}
+DELETE /api/v1/{resource}/{id}
 ```
 
+**Authentication:**
+- Bearer token with API keys (format: `mn_...`)
+- SHA-256 hashed keys in database
+- Dependency injection for auth verification
+
 **Response Format:**
-- Use SSE (Server-Sent Events) for streaming
-- Return JSON for structured data
-- Include metadata in responses
+- JSON for structured data
+- SSE for streaming responses
+- Pydantic schemas for validation
+- Include metadata and pagination
 
 **Error Handling:**
-- Log errors with context
-- Return user-friendly error messages
-- Never expose internal details
+- FastAPI exception handlers
+- Structured error responses
+- Logging with context
+- User-friendly error messages
 
 ---
 
