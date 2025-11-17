@@ -87,12 +87,20 @@ curl -X POST "http://localhost:8000/api/v1/auth/register" \
 
 ## Documentation
 
+### 📖 User Guides
 - **[Getting Started](docs/user/getting-started.md)** - Quick start guide
+- **[Python SDK Guide](docs/user/sdk-guide.md)** - SDK installation and usage ⭐
 - **[API Reference](docs/user/api-reference.md)** - Complete API specification
 - **[Architecture](docs/user/architecture.md)** - System design and components
 - **[Deployment](docs/user/deployment.md)** - Production deployment guide
-- **[Python SDK](sdk/README.md)** - SDK documentation with examples
+
+### 💻 SDK & Examples
+- **[Python SDK](sdk/README.md)** - Complete SDK documentation (473 lines)
+- **[SDK Examples](sdk/examples/)** - 6 working code examples
+
+### 🔧 Developer Docs
 - **[Developer Guide](CLAUDE.md)** - Contributing and development guidelines
+- **[All Documentation](docs/)** - Complete documentation index
 
 ## Project Structure
 

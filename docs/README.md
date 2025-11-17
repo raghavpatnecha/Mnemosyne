@@ -13,6 +13,7 @@ Welcome to Mnemosyne - an open-source RAG-as-a-Service platform.
 For users of the Mnemosyne platform:
 
 - **[Getting Started](user/getting-started.md)** - Quick start guide and basic usage
+- **[Python SDK Guide](user/sdk-guide.md)** - SDK installation and usage ⭐
 - **[API Reference](user/api-reference.md)** - Complete API specification
 - **[Architecture](user/architecture.md)** - System architecture overview
 - **[Deployment Guide](user/deployment.md)** - Production deployment instructions
@@ -29,8 +30,17 @@ For contributors and developers:
 
 ## SDK Documentation
 
-- **[Python SDK](../sdk/README.md)** - Complete Python SDK guide
-- **[SDK Examples](../sdk/examples/)** - Code examples
+Complete Python SDK documentation and examples:
+
+- **[SDK Guide](user/sdk-guide.md)** - Quick SDK reference (start here!)
+- **[Full SDK Docs](../sdk/README.md)** - Complete SDK documentation (473 lines)
+- **[SDK Examples](../sdk/examples/)** - 6 working code examples
+  - `basic_retrieval.py` - All 5 search modes
+  - `ingestion_workflow.py` - Document upload workflow
+  - `streaming_chat.py` - Real-time chat
+  - `async_streaming.py` - Async/await usage
+  - `video_ingestion.py` - YouTube & MP4 videos
+  - `langchain_integration.py` - LangChain integration
 
 ## Archive
 
