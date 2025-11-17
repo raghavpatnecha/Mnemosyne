@@ -74,10 +74,12 @@ export class DocumentsResource {
     formData.append('metadata', JSON.stringify(metadata || {}));
 
     // Make request with multipart/form-data
-    // Don't set Content-Type header - fetch will set it automatically with boundary
-    const url = new URL('/documents', (this.client as any).baseUrl);
+    // Note: We bypass the normal request() method because multipart/form-data
+    // requires special handling (FormData body, no Content-Type header)
+    const url = new URL('/documents', this.client.baseUrl);
+
     const headers = {
-      Authorization: `Bearer ${(this.client as any).apiKey}`,
+      Authorization: `Bearer ${this.client.apiKey}`,
     };
 
     const response = await fetch(url.toString(), {
@@ -87,7 +89,7 @@ export class DocumentsResource {
     });
 
     // Handle errors
-    await (this.client as any).handleErrorAsync(response);
+    await this.client.handleErrorAsync(response);
 
     return (await response.json()) as DocumentResponse;
   }

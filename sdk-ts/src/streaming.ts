@@ -2,6 +2,8 @@
  * Server-Sent Events (SSE) streaming utilities
  */
 
+/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-assignment */
+
 /**
  * Parse Server-Sent Events from a streaming response.
  *
@@ -27,19 +29,20 @@ export async function* parseSSEStream(response: Response): AsyncGenerator<string
 
   try {
     while (true) {
-      const { done, value } = await reader.read();
+      const result = await reader.read();
 
-      if (done) {
+      if (result.done) {
         break;
       }
 
       // Decode chunk and add to buffer
-      buffer += decoder.decode(value, { stream: true });
+      buffer += decoder.decode(result.value, { stream: true });
 
       // Process complete lines
       const lines = buffer.split('\n');
       // Keep incomplete line in buffer
-      buffer = lines.pop() || '';
+      const lastLine = lines.pop();
+      buffer = lastLine !== undefined ? lastLine : '';
 
       for (const line of lines) {
         const trimmedLine = line.trim();

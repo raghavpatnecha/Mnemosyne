@@ -22,7 +22,7 @@ import {
  * // Initialize client
  * const client = new MnemosyneClient({
  *   apiKey: 'mn_...',
- *   baseUrl: 'http://localhost:8000/api/v1'
+ *   baseUrl: 'http://localhost:8000/api/v1'  // Must include /api/v1
  * });
  *
  * // Create collection
@@ -78,8 +78,8 @@ export class MnemosyneClient extends BaseClient {
    * ```typescript
    * const client = new MnemosyneClient({
    *   apiKey: 'mn_...',
-   *   baseUrl: 'http://localhost:8000/api/v1',
-   *   timeout: 120000,
+   *   baseUrl: 'http://localhost:8000/api/v1',  // Must include /api/v1
+   *   timeout: 120000,  // 120 seconds in milliseconds
    *   maxRetries: 5
    * });
    * ```

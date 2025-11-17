@@ -17,9 +17,9 @@ import {
 export interface BaseClientConfig {
   /** Mnemosyne API key (required, or set MNEMOSYNE_API_KEY env var) */
   apiKey?: string;
-  /** Base URL for API (default: http://localhost:8000/api/v1) */
+  /** Base URL for API (default: http://localhost:8000). Note: Must include /api/v1 suffix for API routes */
   baseUrl?: string;
-  /** Request timeout in milliseconds (default: 60000) */
+  /** Request timeout in milliseconds (default: 60000 = 60 seconds) */
   timeout?: number;
   /** Maximum number of retries for failed requests (default: 3) */
   maxRetries?: number;
@@ -44,10 +44,14 @@ interface RequestOptions {
  * - Retry logic with exponential backoff
  */
 export class BaseClient {
-  protected readonly apiKey: string;
-  protected readonly baseUrl: string;
-  protected readonly timeout: number;
-  protected readonly maxRetries: number;
+  /** @internal API key for authentication */
+  public readonly apiKey: string;
+  /** @internal Base URL for API requests */
+  public readonly baseUrl: string;
+  /** @internal Request timeout in milliseconds */
+  public readonly timeout: number;
+  /** @internal Maximum retry attempts */
+  public readonly maxRetries: number;
 
   constructor(config: BaseClientConfig = {}) {
     // Get API key from config or environment
@@ -60,10 +64,11 @@ export class BaseClient {
     }
 
     // Get base URL from config or environment
+    // Note: User must include /api/v1 in the base URL (matching Python SDK behavior)
     this.baseUrl = (
       config.baseUrl ||
       process.env.MNEMOSYNE_BASE_URL ||
-      'http://localhost:8000/api/v1'
+      'http://localhost:8000'
     ).replace(/\/$/, ''); // Remove trailing slash
 
     this.timeout = config.timeout || 60000; // 60 seconds default
@@ -124,8 +129,9 @@ export class BaseClient {
 
   /**
    * Handle error responses asynchronously with proper error message extraction
+   * @internal
    */
-  protected async handleErrorAsync(response: Response): Promise<void> {
+  public async handleErrorAsync(response: Response): Promise<void> {
     if (response.ok) {
       return;
     }
@@ -176,10 +182,11 @@ export class BaseClient {
   }
 
   /**
-   * Calculate exponential backoff delay
+   * Calculate exponential backoff delay in milliseconds
+   * @returns Delay in milliseconds (2^attempt seconds, max 16 seconds)
    */
   protected calculateBackoff(attempt: number): number {
-    return Math.min(Math.pow(2, attempt) * 1000, 16000); // Max 16 seconds
+    return Math.min(Math.pow(2, attempt) * 1000, 16000); // Max 16 seconds (16000ms)
   }
 
   /**
