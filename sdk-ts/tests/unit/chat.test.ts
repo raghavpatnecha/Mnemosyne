@@ -37,6 +37,7 @@ describe('ChatResource', () => {
           method: 'POST',
           body: JSON.stringify({
             message: 'Hi',
+            top_k: 5,
             stream: true,
           }),
         })
@@ -45,7 +46,7 @@ describe('ChatResource', () => {
 
     it('should handle non-streaming chat', async () => {
       const mockResponse = {
-        answer: 'Hello! How can I help you?',
+        message: 'Hello! How can I help you?',
         sources: [
           {
             chunk_id: 'chunk_1',
@@ -155,7 +156,7 @@ describe('ChatResource', () => {
 
       expect(result).toEqual(mockSessions);
       expect(global.fetch).toHaveBeenCalledWith(
-        'http://localhost:8000/api/v1/chat/sessions?limit=10',
+        'http://localhost:8000/api/v1/chat/sessions?limit=20&offset=0',
         expect.any(Object)
       );
     });
@@ -205,13 +206,12 @@ describe('ChatResource', () => {
 
   describe('deleteSession', () => {
     it('should delete a session', async () => {
-      const mockResponse = { success: true };
-
-      global.fetch = vi.fn().mockResolvedValue(createMockResponse(mockResponse));
+      // Delete returns 204 No Content (void)
+      global.fetch = vi.fn().mockResolvedValue(createMockResponse(null));
 
       const result = await client.chat.deleteSession('session_123');
 
-      expect(result).toEqual(mockResponse);
+      expect(result).toBeUndefined();
       expect(global.fetch).toHaveBeenCalledWith(
         'http://localhost:8000/api/v1/chat/sessions/session_123',
         expect.objectContaining({

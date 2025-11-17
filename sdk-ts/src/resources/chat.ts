@@ -110,7 +110,7 @@ export class ChatResource {
   async getSessionMessages(sessionId: string): Promise<ChatMessageResponse[]> {
     return this.client.request<ChatMessageResponse[]>(
       'GET',
-      `/chat/sessions/${sessionId}/messages`
+      `chat/sessions/${sessionId}/messages`
     );
   }
 
@@ -126,6 +126,6 @@ export class ChatResource {
    * ```
    */
   async deleteSession(sessionId: string): Promise<void> {
-    await this.client.request<void>('DELETE', `/chat/sessions/${sessionId}`);
+    await this.client.request<void>('DELETE', `chat/sessions/${sessionId}`);
   }
 }

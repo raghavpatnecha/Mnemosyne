@@ -26,7 +26,7 @@ describe('BaseClient', () => {
   describe('constructor', () => {
     it('should initialize with provided config', () => {
       expect(client.apiKey).toBe('test_key');
-      expect(client.baseUrl).toBe('http://localhost:8000');
+      expect(client.baseUrl).toBe('http://localhost:8000/');
       expect(client.timeout).toBe(60000); // Default is 60s, not 30s
       expect(client.maxRetries).toBe(3);
     });
@@ -38,7 +38,7 @@ describe('BaseClient', () => {
       const envClient = new BaseClient({});
 
       expect(envClient.apiKey).toBe('env_key');
-      expect(envClient.baseUrl).toBe('http://env:9000');
+      expect(envClient.baseUrl).toBe('http://env:9000/');
     });
 
     it('should ensure trailing slash in baseUrl', () => {
@@ -183,7 +183,7 @@ describe('BaseClient', () => {
     it('should throw after max retries', async () => {
       const errorClient = new BaseClient({
         apiKey: 'key',
-        maxRetries: 1, // Reduced to 1 retry
+        maxRetries: 2, // 2 total attempts: 1 initial + 1 retry
       });
 
       global.fetch = vi.fn().mockResolvedValue(createMockErrorResponse('Error', 500));

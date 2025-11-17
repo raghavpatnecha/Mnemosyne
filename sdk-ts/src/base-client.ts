@@ -91,43 +91,6 @@ export class BaseClient {
   }
 
   /**
-   * Handle error responses and raise appropriate exceptions
-   */
-  protected handleError(response: Response): void {
-    if (response.ok) {
-      return;
-    }
-
-    const statusCode = response.status;
-    let message = `HTTP ${statusCode} error`;
-
-    // Try to extract error message from response
-    try {
-      // Note: This is async, but we'll handle it synchronously for now
-      // In real usage, caller should await response.json() before calling this
-      message = response.statusText || message;
-    } catch {
-      // Use default message
-    }
-
-    // Map status codes to exception types
-    switch (statusCode) {
-      case 401:
-        throw new AuthenticationError(message, statusCode);
-      case 403:
-        throw new PermissionError(message, statusCode);
-      case 404:
-        throw new NotFoundError(message, statusCode);
-      case 422:
-        throw new ValidationError(message, statusCode);
-      case 429:
-        throw new RateLimitError(message, statusCode);
-      default:
-        throw new APIError(message, statusCode);
-    }
-  }
-
-  /**
    * Handle error responses asynchronously with proper error message extraction
    * @internal
    */
@@ -229,17 +192,21 @@ export class BaseClient {
 
         clearTimeout(timeoutId);
 
-        // Check if we should retry
-        if (this.shouldRetry(response, null) && attempt < this.maxRetries - 1) {
-          const delay = this.calculateBackoff(attempt);
-          await new Promise((resolve) => setTimeout(resolve, delay));
-          continue;
+        // Check for errors and decide whether to retry
+        if (!response.ok) {
+          // Determine if we should retry this error
+          if (this.shouldRetry(response, null) && attempt < this.maxRetries - 1) {
+            // Will retry - wait with backoff
+            const delay = this.calculateBackoff(attempt);
+            await new Promise((resolve) => setTimeout(resolve, delay));
+            continue;
+          }
+
+          // Not retryable or out of retries - throw error with proper message
+          await this.handleErrorAsync(response);
         }
 
-        // Handle errors (raises exceptions)
-        await this.handleErrorAsync(response);
-
-        // Parse and return response
+        // Success - parse and return response
         return (await response.json()) as T;
       } catch (error) {
         lastError = error as Error;

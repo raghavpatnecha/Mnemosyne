@@ -76,7 +76,7 @@ export class DocumentsResource {
     // Make request with multipart/form-data
     // Note: We bypass the normal request() method because multipart/form-data
     // requires special handling (FormData body, no Content-Type header)
-    const url = new URL('/documents', this.client.baseUrl);
+    const url = new URL('documents', this.client.baseUrl);
 
     const headers = {
       Authorization: `Bearer ${this.client.apiKey}`,
@@ -146,7 +146,7 @@ export class DocumentsResource {
    * ```
    */
   async get(documentId: string): Promise<DocumentResponse> {
-    return this.client.request<DocumentResponse>('GET', `/documents/${documentId}`);
+    return this.client.request<DocumentResponse>('GET', `documents/${documentId}`);
   }
 
   /**
@@ -164,7 +164,7 @@ export class DocumentsResource {
    * ```
    */
   async getStatus(documentId: string): Promise<DocumentStatusResponse> {
-    return this.client.request<DocumentStatusResponse>('GET', `/documents/${documentId}/status`);
+    return this.client.request<DocumentStatusResponse>('GET', `documents/${documentId}/status`);
   }
 
   /**
@@ -185,7 +185,7 @@ export class DocumentsResource {
    * ```
    */
   async update(documentId: string, params: DocumentUpdate): Promise<DocumentResponse> {
-    return this.client.request<DocumentResponse>('PATCH', `/documents/${documentId}`, {
+    return this.client.request<DocumentResponse>('PATCH', `documents/${documentId}`, {
       json: params,
     });
   }
@@ -202,6 +202,6 @@ export class DocumentsResource {
    * ```
    */
   async delete(documentId: string): Promise<void> {
-    await this.client.request<void>('DELETE', `/documents/${documentId}`);
+    await this.client.request<void>('DELETE', `documents/${documentId}`);
   }
 }

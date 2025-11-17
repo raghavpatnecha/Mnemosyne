@@ -5,6 +5,15 @@
 // Common types
 export type { Pagination, PaginatedResponse } from './common.js';
 
+// Shared types (additional common types)
+export type {
+  PaginationOptions,
+  LimitOffsetPagination,
+  Metadata,
+  Timestamp,
+  UUID,
+} from './shared.js';
+
 // Auth types
 export type { RegisterRequest, RegisterResponse } from './auth.js';
 

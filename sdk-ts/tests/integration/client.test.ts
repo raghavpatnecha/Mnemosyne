@@ -168,7 +168,7 @@ describe('MnemosyneClient Integration', () => {
 
     it('should share client configuration across resources', () => {
       expect(client.collections['client'].apiKey).toBe('test_key');
-      expect(client.documents['client'].baseUrl).toBe('http://localhost:8000/api/v1');
+      expect(client.documents['client'].baseUrl).toBe('http://localhost:8000/api/v1/');
       expect(client.chat['client'].timeout).toBe(60000); // Default is 60s
     });
   });

@@ -117,8 +117,8 @@ describe('DocumentsResource', () => {
           },
         ],
         total: 1,
-        page: 1,
-        page_size: 10,
+        limit: 20,
+        offset: 0,
       };
 
       global.fetch = vi.fn().mockResolvedValue(createMockResponse(mockResponse));
@@ -142,7 +142,7 @@ describe('DocumentsResource', () => {
       });
 
       expect(global.fetch).toHaveBeenCalledWith(
-        expect.stringContaining('status_filter=completed'),
+        expect.stringContaining('status=completed'),
         expect.any(Object)
       );
     });
@@ -151,16 +151,16 @@ describe('DocumentsResource', () => {
       global.fetch = vi.fn().mockResolvedValue(createMockResponse({ data: [], total: 0 }));
 
       await client.documents.list({
-        page: 2,
-        page_size: 20,
+        limit: 10,
+        offset: 20,
       });
 
       expect(global.fetch).toHaveBeenCalledWith(
-        expect.stringContaining('page=2'),
+        expect.stringContaining('limit=10'),
         expect.any(Object)
       );
       expect(global.fetch).toHaveBeenCalledWith(
-        expect.stringContaining('page_size=20'),
+        expect.stringContaining('offset=20'),
         expect.any(Object)
       );
     });
@@ -240,13 +240,12 @@ describe('DocumentsResource', () => {
 
   describe('delete', () => {
     it('should delete document', async () => {
-      const mockResponse = { success: true };
-
-      global.fetch = vi.fn().mockResolvedValue(createMockResponse(mockResponse));
+      // Delete returns 204 No Content (void)
+      global.fetch = vi.fn().mockResolvedValue(createMockResponse(null));
 
       const result = await client.documents.delete('doc_123');
 
-      expect(result).toEqual(mockResponse);
+      expect(result).toBeUndefined();
       expect(global.fetch).toHaveBeenCalledWith(
         'http://localhost:8000/api/v1/documents/doc_123',
         expect.objectContaining({

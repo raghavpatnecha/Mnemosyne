@@ -86,8 +86,8 @@ describe('CollectionsResource', () => {
           },
         ],
         total: 1,
-        page: 1,
-        page_size: 10,
+        limit: 20,
+        offset: 0,
       };
 
       global.fetch = vi.fn().mockResolvedValue(createMockResponse(mockResponse));
@@ -96,7 +96,7 @@ describe('CollectionsResource', () => {
 
       expect(result).toEqual(mockResponse);
       expect(global.fetch).toHaveBeenCalledWith(
-        'http://localhost:8000/api/v1/collections?page=1&page_size=10',
+        'http://localhost:8000/api/v1/collections?limit=20&offset=0',
         expect.any(Object)
       );
     });
@@ -104,10 +104,10 @@ describe('CollectionsResource', () => {
     it('should list collections with custom pagination', async () => {
       global.fetch = vi.fn().mockResolvedValue(createMockResponse({ data: [], total: 0 }));
 
-      await client.collections.list({ page: 2, page_size: 20 });
+      await client.collections.list({ limit: 10, offset: 20 });
 
       expect(global.fetch).toHaveBeenCalledWith(
-        'http://localhost:8000/api/v1/collections?page=2&page_size=20',
+        'http://localhost:8000/api/v1/collections?limit=10&offset=20',
         expect.any(Object)
       );
     });
@@ -193,13 +193,12 @@ describe('CollectionsResource', () => {
 
   describe('delete', () => {
     it('should delete collection', async () => {
-      const mockResponse = { success: true };
-
-      global.fetch = vi.fn().mockResolvedValue(createMockResponse(mockResponse));
+      // Delete returns 204 No Content (void)
+      global.fetch = vi.fn().mockResolvedValue(createMockResponse(null));
 
       const result = await client.collections.delete('coll_123');
 
-      expect(result).toEqual(mockResponse);
+      expect(result).toBeUndefined();
       expect(global.fetch).toHaveBeenCalledWith(
         'http://localhost:8000/api/v1/collections/coll_123',
         expect.objectContaining({

@@ -118,11 +118,21 @@ await client.collections.delete('coll_123');
 
 ### Documents
 
+**Note:** File path uploads (`string`) only work in Node.js. In browsers, use `File` or `Blob` objects from `<input type="file">`.
+
 ```typescript
 // Upload file (File object, Blob, or file path)
+// Node.js: supports file paths
 const doc = await client.documents.create(
   'coll_123',
-  file,  // File | Blob | string (path)
+  './document.pdf',  // string path (Node.js only)
+  { custom: 'metadata' }
+);
+
+// Browser: use File from input
+const doc = await client.documents.create(
+  'coll_123',
+  fileInput.files[0],  // File object (works everywhere)
   { custom: 'metadata' }
 );
 
@@ -443,8 +453,20 @@ npm run type-check
 
 ## Requirements
 
-- **Node.js**: 18.0.0 or higher
+- **Node.js**: 18.0.0 or higher (for native fetch support)
+- **Browser**: Modern browsers with fetch API support
 - **TypeScript**: 5.0+ (for development)
+
+### Platform Support
+
+| Feature | Node.js | Browser |
+|---------|---------|---------|
+| All API operations | ✅ | ✅ |
+| File upload (File/Blob) | ✅ | ✅ |
+| File upload (path string) | ✅ | ❌ |
+| SSE streaming | ✅ | ✅ |
+
+**Note:** File path uploads use Node.js `fs/promises` and are not available in browsers. Use `File` objects from `<input type="file">` in browser environments.
 
 ## License
 

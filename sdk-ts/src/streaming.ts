@@ -2,8 +2,6 @@
  * Server-Sent Events (SSE) streaming utilities
  */
 
-/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-assignment */
-
 /**
  * Parse Server-Sent Events from a streaming response.
  *
@@ -29,13 +27,16 @@ export async function* parseSSEStream(response: Response): AsyncGenerator<string
 
   try {
     while (true) {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       const result = await reader.read();
 
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
       if (result.done) {
         break;
       }
 
       // Decode chunk and add to buffer
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument
       buffer += decoder.decode(result.value, { stream: true });
 
       // Process complete lines
