@@ -230,14 +230,15 @@ async def retrieve(
     graph_context = None
     graph_enhanced = False
 
-    # Handle graph enhancement for non-graph modes
+    # Validate graph enhancement request (fail-fast)
     if request.enable_graph and request.mode != RetrievalMode.GRAPH:
         # HybridRAG: Run base search + graph query in parallel
         if not settings.LIGHTRAG_ENABLED:
-            logger.warning("Graph enhancement requested but LightRAG is disabled")
-            request.enable_graph = False  # Disable for this request
-        else:
-            logger.info(f"Running HybridRAG: {request.mode.value} + graph (parallel)")
+            raise http_400_bad_request(
+                "Graph enhancement requested but LightRAG is not enabled. "
+                "Set LIGHTRAG_ENABLED=true in configuration."
+            )
+        logger.info(f"Running HybridRAG: {request.mode.value} + graph (parallel)")
 
     # Generate embedding if needed (for semantic/hybrid/hierarchical modes)
     if request.mode in [RetrievalMode.SEMANTIC, RetrievalMode.HYBRID, RetrievalMode.HIERARCHICAL]:
@@ -317,13 +318,14 @@ async def retrieve(
             run_graph_query()
         )
 
-        if graph_result:
-            results, graph_context = _enrich_with_graph_context(base_results, graph_result)
-            graph_enhanced = True
-        else:
-            results = base_results
-            graph_context = None
-            graph_enhanced = False
+        if not graph_result:
+            raise http_400_bad_request(
+                "Graph enhancement failed - LightRAG returned no results. "
+                "Check LightRAG configuration and ensure documents are indexed."
+            )
+
+        results, graph_context = _enrich_with_graph_context(base_results, graph_result)
+        graph_enhanced = True
 
     else:
         # Base search only (no graph enhancement)
