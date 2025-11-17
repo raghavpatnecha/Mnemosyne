@@ -12,10 +12,11 @@ RetrievalMode = Literal["semantic", "keyword", "hybrid", "hierarchical", "graph"
 class RetrievalRequest(BaseModel):
     """Request schema for retrieval endpoint"""
 
-    query: str = Field(..., min_length=1, max_length=2000, description="Search query")
+    query: str = Field(..., min_length=1, max_length=1000, description="Search query")
     mode: RetrievalMode = Field(default="hybrid", description="Retrieval mode")
-    top_k: int = Field(default=10, ge=1, le=50, description="Number of results to return")
+    top_k: int = Field(default=10, ge=1, le=100, description="Number of results to return")
     collection_id: Optional[UUID] = Field(None, description="Filter by collection ID")
+    rerank: bool = Field(default=False, description="Enable reranking (future feature)")
     metadata_filter: Optional[Dict] = Field(None, description="Filter by document metadata")
 
 
@@ -45,7 +46,6 @@ class RetrievalResponse(BaseModel):
     """Response schema for retrieval endpoint"""
 
     query: str
-    mode: RetrievalMode
+    mode: str
     results: list[ChunkResult]
     total_results: int
-    processing_time_ms: float = Field(description="Query processing time in milliseconds")

@@ -5,6 +5,7 @@ from typing import Optional, Any, Dict
 import httpx
 from ._base_client import BaseClient
 from .resources import (
+    AuthResource,
     CollectionsResource,
     DocumentsResource,
     RetrievalsResource,
@@ -68,6 +69,7 @@ class Client(BaseClient):
         )
 
         # Initialize resource instances
+        self.auth = AuthResource(self)
         self.collections = CollectionsResource(self)
         self.documents = DocumentsResource(self)
         self.retrievals = RetrievalsResource(self)

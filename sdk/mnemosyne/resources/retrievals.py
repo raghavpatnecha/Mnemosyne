@@ -25,16 +25,18 @@ class RetrievalsResource:
         mode: RetrievalMode = "hybrid",
         top_k: int = 10,
         collection_id: Optional[UUID] = None,
+        rerank: bool = False,
         metadata_filter: Optional[Dict] = None,
     ) -> RetrievalResponse:
         """
         Retrieve relevant chunks using various search modes.
 
         Args:
-            query: Search query (1-2000 characters)
+            query: Search query (1-1000 characters)
             mode: Retrieval mode - semantic, keyword, hybrid, hierarchical, or graph
-            top_k: Number of results to return (1-50, default: 10)
+            top_k: Number of results to return (1-100, default: 10)
             collection_id: Filter by collection UUID
+            rerank: Enable reranking (future feature, default: False)
             metadata_filter: Filter by document metadata
 
         Returns:
@@ -49,6 +51,7 @@ class RetrievalsResource:
             mode=mode,
             top_k=top_k,
             collection_id=collection_id,
+            rerank=rerank,
             metadata_filter=metadata_filter,
         ).model_dump(exclude_unset=True)
 
@@ -68,6 +71,7 @@ class AsyncRetrievalsResource:
         mode: RetrievalMode = "hybrid",
         top_k: int = 10,
         collection_id: Optional[UUID] = None,
+        rerank: bool = False,
         metadata_filter: Optional[Dict] = None,
     ) -> RetrievalResponse:
         """Retrieve relevant chunks using various search modes (async)"""
@@ -76,6 +80,7 @@ class AsyncRetrievalsResource:
             mode=mode,
             top_k=top_k,
             collection_id=collection_id,
+            rerank=rerank,
             metadata_filter=metadata_filter,
         ).model_dump(exclude_unset=True)
 

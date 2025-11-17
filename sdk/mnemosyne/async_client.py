@@ -5,6 +5,7 @@ from typing import Optional, Any, Dict
 import httpx
 from ._base_client import BaseClient
 from .resources import (
+    AsyncAuthResource,
     AsyncCollectionsResource,
     AsyncDocumentsResource,
     AsyncRetrievalsResource,
@@ -64,6 +65,7 @@ class AsyncClient(BaseClient):
         )
 
         # Initialize async resource instances
+        self.auth = AsyncAuthResource(self)
         self.collections = AsyncCollectionsResource(self)
         self.documents = AsyncDocumentsResource(self)
         self.retrievals = AsyncRetrievalsResource(self)

@@ -1,5 +1,6 @@
 """Type definitions for Mnemosyne SDK"""
 
+from .auth import RegisterRequest, RegisterResponse
 from .collections import (
     CollectionCreate,
     CollectionUpdate,
@@ -29,6 +30,8 @@ from .chat import (
 )
 
 __all__ = [
+    "RegisterRequest",
+    "RegisterResponse",
     "CollectionCreate",
     "CollectionUpdate",
     "CollectionResponse",
