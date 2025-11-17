@@ -103,7 +103,7 @@ async def retrieve(
             top_k=request.top_k
         )
     elif request.mode == RetrievalMode.GRAPH:
-        # LightRAG graph-based retrieval
+        # LightRAG graph-based retrieval with source extraction
         if not settings.LIGHTRAG_ENABLED:
             raise http_400_bad_request("LightRAG is not enabled")
 
@@ -111,26 +111,15 @@ async def retrieve(
         graph_result = await lightrag.query(
             query_text=request.query,
             mode=settings.LIGHTRAG_DEFAULT_MODE,  # hybrid, local, or global
-            top_k=request.top_k
+            top_k=request.top_k,
+            db_session=db,
+            user_id=current_user.id,
+            collection_id=request.collection_id
         )
 
-        # Convert LightRAG context to chunk results
-        # Note: LightRAG returns context string, not structured chunks
-        # This is a simplified implementation - you may want to enhance this
-        results = [{
-            'chunk_id': 'graph_result',
-            'content': graph_result['context'],
-            'chunk_index': 0,
-            'score': 1.0,
-            'metadata': {'mode': graph_result['mode']},
-            'chunk_metadata': {},
-            'document': {
-                'id': 'lightrag',
-                'title': 'Knowledge Graph Results',
-                'filename': 'graph'
-            },
-            'collection_id': str(request.collection_id) if request.collection_id else 'all'
-        }]
+        # Use real source chunks from database for consistent response format
+        # This provides actual chunk IDs and document references
+        results = graph_result.get('chunks', [])
     else:
         raise http_400_bad_request(f"Invalid mode: {request.mode}")
 
