@@ -123,6 +123,9 @@ celerybeat.pid
 
 # Environments
 .env
+.env.local
+.env.production
+.env.staging
 .venv
 env/
 venv/
@@ -164,3 +167,14 @@ cython_debug/
 references/surfsense/
 references/rag-anything/
 models/
+
+# Production specific
+nginx/ssl/*.pem
+nginx/ssl/*.key
+backups/
+*.sql
+*.sql.gz
+uploads/
+!uploads/.gitkeep
+logs/
+lightrag_cache/
