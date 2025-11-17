@@ -90,6 +90,7 @@ curl -X POST "http://localhost:8000/api/v1/auth/register" \
 ### 📖 User Guides
 - **[Getting Started](docs/user/getting-started.md)** - Quick start guide
 - **[Python SDK Guide](docs/user/sdk-guide.md)** - SDK installation and usage ⭐
+- **[Configuration Guide](docs/user/configuration.md)** - Environment variables and setup
 - **[API Reference](docs/user/api-reference.md)** - Complete API specification
 - **[Architecture](docs/user/architecture.md)** - System design and components
 - **[Deployment](docs/user/deployment.md)** - Production deployment guide

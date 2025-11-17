@@ -14,6 +14,7 @@ For users of the Mnemosyne platform:
 
 - **[Getting Started](user/getting-started.md)** - Quick start guide and basic usage
 - **[Python SDK Guide](user/sdk-guide.md)** - SDK installation and usage ⭐
+- **[Configuration Guide](user/configuration.md)** - Environment variables and setup
 - **[API Reference](user/api-reference.md)** - Complete API specification
 - **[Architecture](user/architecture.md)** - System architecture overview
 - **[Deployment Guide](user/deployment.md)** - Production deployment instructions
