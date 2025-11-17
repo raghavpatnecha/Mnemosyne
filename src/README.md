@@ -12,6 +12,11 @@ This folder contains a web-based frontend for testing and demonstrating the Mnem
   - Graph (LightRAG knowledge graph)
 - **Graph Enhancement**: Toggle knowledge graph context for richer responses
 - **Streaming Chat**: Real-time AI-powered responses with RAG context
+- **Rich Metadata Display**:
+  - **Images** extracted from documents shown alongside answers
+  - **Source documents** with relevance scores and snippets
+  - **Follow-up questions** automatically generated
+  - **Confidence scores** based on retrieval quality
 - **Beautiful UI**: Clean, modern interface with existing Mnemosyne design
 
 ## Setup Instructions
