@@ -15,6 +15,7 @@ class RetrievalMode(str, Enum):
     KEYWORD = "keyword"
     HYBRID = "hybrid"
     HIERARCHICAL = "hierarchical"
+    GRAPH = "graph"  # LightRAG graph-based retrieval
 
 
 class RetrievalRequest(BaseModel):

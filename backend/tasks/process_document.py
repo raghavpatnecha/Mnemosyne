@@ -19,6 +19,8 @@ from backend.parsers import ParserFactory
 from backend.chunking import ChonkieChunker
 from backend.embeddings import OpenAIEmbedder
 from backend.services.document_summary_service import DocumentSummaryService
+from backend.services.lightrag_service import get_lightrag_service
+from backend.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -121,6 +123,23 @@ class ProcessDocumentTask(Task):
 
             document.summary = summary_result["summary"]
             document.document_embedding = summary_result["embedding"]
+
+            # Index in LightRAG if enabled
+            if settings.LIGHTRAG_ENABLED:
+                try:
+                    logger.info(f"Indexing document in LightRAG")
+                    lightrag = get_lightrag_service()
+                    await lightrag.insert_document(
+                        content=parsed["content"],
+                        document_id=document.id,
+                        metadata={
+                            "title": document.title,
+                            "filename": document.filename,
+                            "content_type": document.content_type
+                        }
+                    )
+                except Exception as e:
+                    logger.warning(f"LightRAG indexing failed (non-critical): {e}")
 
             document.status = "completed"
             document.processed_at = datetime.utcnow()
