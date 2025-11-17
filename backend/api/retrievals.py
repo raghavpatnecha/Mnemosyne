@@ -6,9 +6,15 @@ Semantic search, hybrid search, and ranking
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 import time
+import logging
 
 from backend.database import get_db
-from backend.api.deps import get_current_user
+from backend.api.deps import (
+    get_current_user,
+    get_cache_service,
+    get_reranker_service,
+    get_query_reformulation_service
+)
 from backend.models.user import User
 from backend.schemas.retrieval import (
     RetrievalRequest,
@@ -21,20 +27,48 @@ from backend.search.vector_search import VectorSearchService
 from backend.search.hierarchical_search import HierarchicalSearchService
 from backend.embeddings.openai_embedder import OpenAIEmbedder
 from backend.services.lightrag_service import get_lightrag_service
-from backend.services.reranker_service import RerankerService
-from backend.services.cache_service import CacheService
-from backend.services.query_reformulation import QueryReformulationService
 from backend.config import settings
 from backend.core.exceptions import http_400_bad_request
 
 router = APIRouter(prefix="/retrievals", tags=["retrievals"])
+logger = logging.getLogger(__name__)
+
+
+def _build_chunk_results(results: list) -> list[ChunkResult]:
+    """
+    Build ChunkResult objects from search results
+
+    Centralized function to avoid code duplication
+
+    Args:
+        results: List of search result dicts
+
+    Returns:
+        List of ChunkResult objects
+    """
+    return [
+        ChunkResult(
+            chunk_id=r['chunk_id'],
+            content=r['content'],
+            chunk_index=r['chunk_index'],
+            score=r['score'],
+            metadata=r['metadata'],
+            chunk_metadata=r['chunk_metadata'],
+            document=DocumentInfo(**r['document']),
+            collection_id=r['collection_id']
+        )
+        for r in results
+    ]
 
 
 @router.post("", response_model=RetrievalResponse, status_code=status.HTTP_200_OK)
 async def retrieve(
     request: RetrievalRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    cache: "CacheService" = Depends(get_cache_service),
+    reranker: "RerankerService" = Depends(get_reranker_service),
+    query_reformulator: "QueryReformulationService" = Depends(get_query_reformulation_service)
 ):
     """
     Retrieve relevant chunks for a query
@@ -78,14 +112,10 @@ async def retrieve(
     5. Apply reranking if requested
     6. Cache results for future requests
     """
-    start_time = time.time()
-
+    # Services are now injected via dependency injection (singletons)
     embedder = OpenAIEmbedder()
     search_service = VectorSearchService(db)
     hierarchical_service = HierarchicalSearchService(db)
-    reranker = RerankerService()
-    cache = CacheService()
-    query_reformulator = QueryReformulationService()
 
     # Check cache first (before any processing)
     cache_params = {
@@ -100,26 +130,21 @@ async def retrieve(
     cached_results = cache.get_search_results(request.query, cache_params)
     if cached_results:
         # Cache hit - return immediately
-        chunk_results = [
-            ChunkResult(
-                chunk_id=r['chunk_id'],
-                content=r['content'],
-                chunk_index=r['chunk_index'],
-                score=r['score'],
-                metadata=r['metadata'],
-                chunk_metadata=r['chunk_metadata'],
-                document=DocumentInfo(**r['document']),
-                collection_id=r['collection_id']
+        try:
+            chunk_results = _build_chunk_results(cached_results)
+            logger.debug(f"Cache hit for query: {request.query[:50]}...")
+            return RetrievalResponse(
+                results=chunk_results,
+                query=request.query,
+                mode=request.mode.value,
+                total_results=len(chunk_results)
             )
-            for r in cached_results
-        ]
-
-        return RetrievalResponse(
-            results=chunk_results,
-            query=request.query,
-            mode=request.mode.value,
-            total_results=len(chunk_results)
-        )
+        except (KeyError, TypeError, ValueError) as e:
+            # Corrupted cache data - log warning and fall through to normal search
+            logger.warning(
+                f"Corrupted cache data for query '{request.query[:50]}...': {e}. "
+                "Falling back to normal search."
+            )
 
     # Cache miss - proceed with search
     # Apply query reformulation if enabled
@@ -196,25 +221,17 @@ async def retrieve(
 
     # Cache results (using original query as key)
     if results:
-        cache.set_search_results(
+        success = cache.set_search_results(
             query=request.query,  # Cache with original query
             params=cache_params,
             results=results
         )
+        if not success:
+            logger.warning(
+                f"Failed to cache search results for query: {request.query[:50]}..."
+            )
 
-    chunk_results = [
-        ChunkResult(
-            chunk_id=r['chunk_id'],
-            content=r['content'],
-            chunk_index=r['chunk_index'],
-            score=r['score'],
-            metadata=r['metadata'],
-            chunk_metadata=r['chunk_metadata'],
-            document=DocumentInfo(**r['document']),
-            collection_id=r['collection_id']
-        )
-        for r in results
-    ]
+    chunk_results = _build_chunk_results(results)
 
     return RetrievalResponse(
         results=chunk_results,
