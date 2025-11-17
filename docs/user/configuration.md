@@ -152,6 +152,60 @@ LIGHTRAG_DEFAULT_MODE=hybrid
 - 99% token reduction vs traditional RAG
 - Best for reasoning and relationship queries
 
+## Reranking
+
+Improve retrieval accuracy by 15-25% using specialized reranking models.
+
+```bash
+RERANK_ENABLED=true
+RERANK_PROVIDER=flashrank  # or cohere, jina, voyage, mixedbread
+RERANK_MODEL=ms-marco-MultiBERT-L-12  # Provider-specific model
+RERANK_TOP_K=10
+RERANK_API_KEY=  # Required for API-based providers
+```
+
+**Supported Providers**:
+
+| Provider | Type | Speed | Quality | Cost |
+|----------|------|-------|---------|------|
+| **Flashrank** | Local | Fast | Good | Free |
+| Cohere | API | Medium | Excellent | Paid |
+| Jina | API | Medium | Very Good | Free tier |
+| Voyage | API | Medium | Very Good | Paid |
+| Mixedbread | API | Medium | Very Good | Paid |
+
+**Configuration Examples**:
+
+```bash
+# Local reranking (default - no API calls, free)
+RERANK_ENABLED=true
+RERANK_PROVIDER=flashrank
+RERANK_MODEL=ms-marco-MultiBERT-L-12
+
+# Cohere reranking (best quality)
+RERANK_ENABLED=true
+RERANK_PROVIDER=cohere
+RERANK_MODEL=rerank-english-v3.0
+RERANK_API_KEY=your-cohere-api-key
+
+# Jina reranking (free tier available)
+RERANK_ENABLED=true
+RERANK_PROVIDER=jina
+RERANK_MODEL=jina-reranker-v1-base-en
+RERANK_API_KEY=your-jina-api-key
+```
+
+**How It Works**:
+1. Initial search returns top 50 candidates
+2. Reranker re-scores all candidates for query relevance
+3. Returns top 10 best matches
+4. Applied when `rerank=true` in API request
+
+**When to Enable**:
+- ✅ Production deployments (better accuracy)
+- ✅ When retrieval quality is critical
+- ❌ Dev/testing (adds latency)
+
 ## Document Processing
 
 ### Upload & Storage

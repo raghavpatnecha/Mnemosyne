@@ -384,27 +384,26 @@ Perform semantic search and retrieve relevant document chunks.
   "query": "How do I deploy the application?",
   "top_k": 10,
   "mode": "hybrid",
-  "filters": {
-    "metadata.category": "technical",
-    "metadata.author": "John Doe"
-  },
   "rerank": true,
-  "rerank_model": "jina-reranker-v1",
-  "include_metadata": true
+  "metadata_filter": {
+    "category": "technical",
+    "author": "John Doe"
+  }
 }
 ```
 
 **Parameters**:
-- `mode` (string): Search mode
-  - `"semantic"`: Vector similarity search (default)
+- `query` (string, required): Search query (1-1000 chars)
+- `mode` (string, default: "semantic"): Search mode
+  - `"semantic"`: Vector similarity search
   - `"keyword"`: PostgreSQL full-text search (BM25)
-  - `"hybrid"`: RRF fusion of semantic + keyword (recommended)
+  - `"hybrid"`: RRF fusion of semantic + keyword (recommended) ⭐
   - `"hierarchical"`: Two-tier document → chunk retrieval
-  - `"graph"`: LightRAG knowledge graph search with source extraction ⭐
+  - `"graph"`: LightRAG knowledge graph search with source extraction
 - `top_k` (int, default: 10, max: 100): Number of results to return
-- `rerank` (boolean, default: false): Apply reranking to results
-- `filters` (object): Metadata filters using dot notation
-- `include_metadata` (boolean, default: true): Include document metadata
+- `collection_id` (UUID, optional): Filter by specific collection
+- `rerank` (boolean, default: false): Apply reranking to improve accuracy by 15-25%
+- `metadata_filter` (object, optional): Filter by metadata fields
 
 **Response**: `200 OK`
 ```json
@@ -437,6 +436,43 @@ Perform semantic search and retrieve relevant document chunks.
   }
 }
 ```
+
+### Reranking for Better Accuracy ⭐
+
+Apply optional reranking to improve retrieval accuracy by 15-25% by re-scoring results with specialized models.
+
+**How to Enable**:
+```json
+{
+  "query": "How to deploy?",
+  "mode": "hybrid",
+  "rerank": true,  // ← Enable reranking
+  "top_k": 10
+}
+```
+
+**Supported Rerankers** (configured via environment variables):
+- **Flashrank**: Local cross-encoder (fast, free, no API calls) - Default
+- **Cohere**: High-quality API-based (`rerank-english-v3.0`)
+- **Jina**: API-based with free tier (`jina-reranker-v1-base-en`)
+- **Voyage**: API-based reranking
+- **Mixedbread**: API-based reranking
+
+**Configuration**:
+```bash
+RERANK_ENABLED=true
+RERANK_PROVIDER=flashrank  # or cohere, jina, voyage, mixedbread
+RERANK_MODEL=ms-marco-MiniLM-L-12-v2  # For flashrank
+RERANK_API_KEY=your-key  # For API-based providers
+```
+
+**Benefits**:
+- Works with all 5 search modes
+- Improves relevance scoring
+- Re-orders results by query-document relevance
+- Optional (disabled by default, no cost unless enabled)
+
+---
 
 ### Graph Mode Search (LightRAG) ⭐
 
