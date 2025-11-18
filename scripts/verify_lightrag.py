@@ -1,11 +1,25 @@
 """
 LightRAG Installation Verification Script
 Tests that LightRAG is properly installed and configured
+
+DEPRECATED: This script uses the old singleton LightRAG API.
+The new architecture uses per-user, per-collection LightRAG instances.
+See backend/services/lightrag_service.py for the new LightRAGInstanceManager API.
+
+This script is kept for reference only and may be removed in future versions.
 """
 
 import asyncio
 import sys
 from pathlib import Path
+
+print("=" * 80)
+print("DEPRECATION WARNING:")
+print("This script uses the old singleton LightRAG API which has been removed.")
+print("The new architecture uses LightRAGInstanceManager with per-user isolation.")
+print("=" * 80)
+print()
+sys.exit(1)
 
 # Add backend to path
 sys.path.insert(0, str(Path(__file__).parent.parent))

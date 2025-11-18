@@ -25,11 +25,10 @@ from backend.schemas.document import (
     DocumentStatusResponse
 )
 from backend.core.exceptions import http_404_not_found, http_400_bad_request
-from backend.storage.local import LocalStorage
+from backend.storage import storage_backend
 from backend.tasks.process_document import process_document_task
 
 router = APIRouter(prefix="/documents", tags=["documents"])
-storage = LocalStorage()
 
 
 @router.post("", response_model=DocumentResponse, status_code=status.HTTP_202_ACCEPTED)
@@ -85,9 +84,6 @@ async def create_document(
             f"Document with same content already exists (document_id: {existing.id})"
         )
 
-    # Save file to storage
-    file_path = storage.save(content, content_hash)
-
     # Parse metadata JSON
     try:
         metadata_dict = json.loads(metadata) if metadata else {}
@@ -105,10 +101,25 @@ async def create_document(
         content_hash=content_hash,
         status="pending",
         metadata=metadata_dict,
-        processing_info={"file_path": file_path}
+        processing_info={}
     )
 
     db.add(document)
+    db.commit()
+    db.refresh(document)
+
+    # Save file to storage with user-scoped path
+    file_path = storage_backend.save(
+        file=content,
+        user_id=current_user.id,
+        collection_id=collection_id,
+        document_id=document.id,
+        filename=file.filename,
+        content_type=file.content_type
+    )
+
+    # Update document with storage path
+    document.processing_info = {"file_path": file_path}
     db.commit()
     db.refresh(document)
 
@@ -396,7 +407,10 @@ async def delete_document(
     # Delete document and file
     if document.processing_info and "file_path" in document.processing_info:
         try:
-            storage.delete(document.processing_info["file_path"])
+            storage_backend.delete(
+                storage_path=document.processing_info["file_path"],
+                user_id=current_user.id
+            )
         except Exception:
             pass
 
@@ -404,3 +418,61 @@ async def delete_document(
     db.commit()
 
     return None
+
+
+@router.get("/{document_id}/url", response_model=dict)
+async def get_document_url(
+    document_id: UUID,
+    expires_in: int = 3600,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get access URL for document file (pre-signed URL for S3, file path for local)
+
+    Args:
+        document_id: Document UUID
+        expires_in: URL expiration time in seconds (default: 3600 = 1 hour)
+        db: Database session
+        current_user: Authenticated user
+
+    Returns:
+        dict: {"url": "accessible-url", "expires_in": seconds}
+
+    Raises:
+        HTTPException: 404 if document not found
+        HTTPException: 400 if file not found in storage
+    """
+    # Get document (verify ownership)
+    document = db.query(Document).filter(
+        Document.id == document_id,
+        Document.user_id == current_user.id
+    ).first()
+
+    if not document:
+        raise http_404_not_found("Document not found")
+
+    # Get file path from processing_info
+    if not document.processing_info or "file_path" not in document.processing_info:
+        raise http_400_bad_request("Document file not found")
+
+    file_path = document.processing_info["file_path"]
+
+    # Generate accessible URL
+    try:
+        url = storage_backend.get_url(
+            storage_path=file_path,
+            user_id=current_user.id,
+            expires_in=expires_in
+        )
+
+        return {
+            "url": url,
+            "expires_in": expires_in,
+            "filename": document.filename,
+            "content_type": document.content_type
+        }
+    except FileNotFoundError:
+        raise http_404_not_found("Document file not found in storage")
+    except PermissionError as e:
+        raise http_400_bad_request(str(e))

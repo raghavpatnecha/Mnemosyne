@@ -14,14 +14,10 @@
       <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/search_helper.css') }}" />
       <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/search_style.css') }}" />
       <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/style.css') }}">
-     <!-- <link rel="stylesheet" type="text/css" href="../static/css/search_helper.css" />
-      <link rel="stylesheet" type="text/css" href="../static/css/search_style.css" />
-      <link rel="stylesheet" type="text/css" href="../static/css/style.css"> -->
+      <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/sdk-features.css') }}">
       <!--[if IE]>
       <script src="http://html5shiv.googlecode.com/svn/trunk/html5.js"></script>
       <![endif]--><script>document.documentElement.className = 'js';</script>
-      <style>
-      </style>
    </head>
    <body class="demo-10">
       <svg class="hidden">
@@ -83,6 +79,28 @@
          <div class="page__single page__single--dummy"></div>
          <div class="page__single page__single--dummy"></div>
          <main class="main-wrap page__single">
+            <!-- SDK Toolbar -->
+            <div id="sdk-toolbar" class="sdk-toolbar">
+               <div class="toolbar-section">
+                  <label for="collection-selector">Collection:</label>
+                  <select id="collection-selector" class="collection-selector">
+                     <option value="">All Collections</option>
+                  </select>
+                  <button id="create-collection-btn" class="toolbar-btn" title="Create Collection">+</button>
+                  <button id="delete-collection-btn" class="toolbar-btn" title="Delete Collection">🗑️</button>
+               </div>
+               <div class="toolbar-section">
+                  <button id="upload-btn" class="toolbar-btn primary" title="Upload Document">📤 Upload</button>
+               </div>
+               <div class="toolbar-section">
+                  <label>Mode:</label>
+                  <button class="mode-option" data-mode="semantic" title="Vector-based similarity">Semantic</button>
+                  <button class="mode-option active" data-mode="hybrid" title="Keyword + Semantic">Hybrid</button>
+                  <button class="mode-option" data-mode="graph" title="Knowledge graph">Graph</button>
+                  <button id="graph-toggle" class="graph-toggle active" title="Enable graph enhancement">🕸️</button>
+               </div>
+            </div>
+
             <header class="codrops-header">
                <div class="query-container">
                   <h1 class="codrops-header__title" id="query"></h1>
@@ -182,11 +200,37 @@
          <!-- /search -->
       </div>
       <!-- /page -->
+
+      <!-- Upload Dialog -->
+      <div id="upload-dialog" class="modal-overlay" style="display: none;">
+         <div class="modal-content">
+            <div class="modal-header">
+               <h2>Upload Document</h2>
+               <button id="close-upload-dialog" class="close-btn">×</button>
+            </div>
+            <div class="modal-body">
+               <div class="upload-section">
+                  <h3>Upload File</h3>
+                  <input type="file" id="file-input" accept=".pdf,.docx,.txt,.mp4" multiple>
+                  <p class="upload-hint">Supported: PDF, DOCX, TXT, MP4</p>
+               </div>
+               <div class="upload-divider">OR</div>
+               <div class="upload-section">
+                  <h3>Upload from URL</h3>
+                  <input type="text" id="url-input" placeholder="https://example.com/document.pdf or YouTube URL" class="url-input">
+                  <button id="url-submit-btn" class="toolbar-btn primary">Upload URL</button>
+               </div>
+            </div>
+         </div>
+      </div>
+
+      <!-- Notification Container -->
+      <div id="notification-container" class="notification-container"></div>
+
       <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
       <script src="https://unpkg.co/gsap@3/dist/gsap.min.js"></script>
       <script src="{{ url_for('static', filename='js/search_transform.js') }}"></script>
       <script src="{{ url_for('static', filename='js/script.js') }}"></script>
-   <!--<script src="../static/js/search_transform.js"></script>
-      <script src="../static/js/script.js"></script>-->
+      <script src="{{ url_for('static', filename='js/sdk-features.js') }}"></script>
    </body>
 </html>

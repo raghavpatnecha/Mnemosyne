@@ -1,6 +1,16 @@
 """
 Unit tests for LightRAG Service
 Tests knowledge graph construction and retrieval
+
+DEPRECATED: These tests use the old singleton LightRAG API.
+The new architecture uses LightRAGInstanceManager with per-user, per-collection instances.
+
+TODO: Rewrite tests for new LightRAGInstanceManager class:
+- Test get_instance() with user_id and collection_id
+- Test insert_document() with multi-tenant isolation
+- Test query() with user-scoped knowledge graphs
+- Test delete_collection() and delete_user_data()
+- Test instance caching and reuse
 """
 
 import pytest
@@ -8,8 +18,8 @@ from unittest.mock import Mock, patch, AsyncMock
 from uuid import uuid4
 
 from backend.services.lightrag_service import (
-    LightRAGService,
-    get_lightrag_service,
+    LightRAGInstanceManager,
+    get_lightrag_manager,
     LIGHTRAG_AVAILABLE
 )
 

@@ -39,6 +39,15 @@ class Settings(BaseSettings):
     # Storage
     UPLOAD_DIR: str = "./uploads"
     MAX_UPLOAD_SIZE: int = 100 * 1024 * 1024  # 100MB
+    STORAGE_BACKEND: str = "local"  # "local" or "s3"
+
+    # S3 Storage (if STORAGE_BACKEND="s3")
+    S3_BUCKET_NAME: str = "mnemosyne-documents"
+    S3_ACCESS_KEY_ID: str = ""  # Optional: uses AWS credentials if empty
+    S3_SECRET_ACCESS_KEY: str = ""  # Optional: uses AWS credentials if empty
+    S3_REGION: str = "us-east-1"
+    S3_ENDPOINT_URL: str = ""  # Optional: for MinIO, DigitalOcean Spaces, etc.
+    S3_PRESIGNED_URL_EXPIRY: int = 3600  # Pre-signed URL expiry in seconds (1 hour)
 
     # OpenAI
     OPENAI_API_KEY: str = ""
