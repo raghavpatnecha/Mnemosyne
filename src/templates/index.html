@@ -15,6 +15,7 @@
       <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/search_style.css') }}" />
       <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/style.css') }}">
       <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/sdk-features.css') }}">
+      <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/setup.css') }}">
       <!--[if IE]>
       <script src="http://html5shiv.googlecode.com/svn/trunk/html5.js"></script>
       <![endif]--><script>document.documentElement.className = 'js';</script>
@@ -95,7 +96,9 @@
                <div class="toolbar-section">
                   <label>Mode:</label>
                   <button class="mode-option" data-mode="semantic" title="Vector-based similarity">Semantic</button>
+                  <button class="mode-option" data-mode="keyword" title="Keyword search">Keyword</button>
                   <button class="mode-option active" data-mode="hybrid" title="Keyword + Semantic">Hybrid</button>
+                  <button class="mode-option" data-mode="hierarchical" title="Two-tier hierarchical search">Hierarchical</button>
                   <button class="mode-option" data-mode="graph" title="Knowledge graph">Graph</button>
                   <button id="graph-toggle" class="graph-toggle active" title="Enable graph enhancement">🕸️</button>
                </div>
@@ -229,6 +232,7 @@
 
       <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
       <script src="https://unpkg.co/gsap@3/dist/gsap.min.js"></script>
+      <script src="{{ url_for('static', filename='js/setup.js') }}"></script>
       <script src="{{ url_for('static', filename='js/search_transform.js') }}"></script>
       <script src="{{ url_for('static', filename='js/script.js') }}"></script>
       <script src="{{ url_for('static', filename='js/sdk-features.js') }}"></script>

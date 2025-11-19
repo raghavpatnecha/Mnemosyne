@@ -1,7 +1,7 @@
 // Constants and utility functions
 const CONSTANTS = {
     APP_ID: "", // paste your opengraph.io key here optional
-    API_ID: "http://127.0.0.1:5000/mnemosyne/api/v1/search"
+    API_ID: window.location.origin + "/mnemosyne/api/v1/search"
 };
 const encodeQuery = query => query.replace(/\s+/g, '-').toLowerCase();
 const generateUniqueId = () => Math.random().toString(36).substring(2, 15);

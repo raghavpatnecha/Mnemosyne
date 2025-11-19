@@ -370,5 +370,88 @@ async def health():
     })
 
 
+@app.route('/api/setup/status', methods=['GET'])
+async def get_setup_status():
+    """Get SDK configuration status"""
+    client = get_sdk_client()
+    return jsonify({
+        "configured": client is not None and config.SDK.API_KEY != "",
+        "backend_url": config.SDK.BASE_URL,
+        "has_api_key": config.SDK.API_KEY != ""
+    })
+
+
+@app.route('/api/setup/register', methods=['POST'])
+async def register_user():
+    """
+    Register a new user on the FastAPI backend and get API key.
+    This is a proxy endpoint that calls the FastAPI /auth/register endpoint.
+    """
+    import httpx
+
+    data = await request.get_json()
+    email = data.get('email')
+    password = data.get('password')
+
+    if not email or not password:
+        return jsonify({"error": "Missing 'email' or 'password' field"}), 400
+
+    try:
+        async with httpx.AsyncClient() as http_client:
+            response = await http_client.post(
+                f"{config.SDK.BASE_URL}/auth/register",
+                json={"email": email, "password": password},
+                timeout=30.0
+            )
+
+            if response.status_code == 201:
+                result = response.json()
+                return jsonify({
+                    "api_key": result.get("api_key"),
+                    "message": "Registration successful"
+                }), 201
+            else:
+                error_data = response.json()
+                return jsonify({"error": error_data.get("detail", "Registration failed")}), response.status_code
+
+    except httpx.RequestError as e:
+        return jsonify({"error": f"Failed to connect to backend: {str(e)}"}), 503
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/setup/configure', methods=['POST'])
+async def configure_api_key():
+    """
+    Configure the Flask app with an API key.
+    This reinitializes the SDK client with the provided API key.
+    """
+    from src.api.search import reinitialize_client
+    import os
+
+    data = await request.get_json()
+    api_key = data.get('api_key')
+
+    if not api_key:
+        return jsonify({"error": "Missing 'api_key' field"}), 400
+
+    try:
+        os.environ['MNEMOSYNE_API_KEY'] = api_key
+        config.SDK.API_KEY = api_key
+
+        success = reinitialize_client(api_key)
+
+        if success:
+            return jsonify({
+                "message": "API key configured successfully",
+                "configured": True
+            }), 200
+        else:
+            return jsonify({"error": "Failed to initialize SDK client"}), 500
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
