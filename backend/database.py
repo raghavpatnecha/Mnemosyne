@@ -28,10 +28,17 @@ def get_db():
     """
     Dependency for FastAPI endpoints to get database session
     Automatically closes session after request
+
+    Issue #4 & #14 fix: Added explicit rollback on exceptions
+    to prevent dirty sessions and transaction pollution
     """
     db = SessionLocal()
     try:
         yield db
+    except Exception:
+        # Rollback any pending transaction on error
+        db.rollback()
+        raise
     finally:
         db.close()
 

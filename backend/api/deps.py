@@ -7,12 +7,16 @@ from fastapi import Depends, Header
 from sqlalchemy.orm import Session
 from datetime import datetime
 from typing import Optional
+import logging
 
 from backend.database import get_db
 from backend.models.user import User
 from backend.models.api_key import APIKey
 from backend.core.security import hash_api_key
 from backend.core.exceptions import http_401_unauthorized
+from backend.utils.sanitize import get_safe_api_key_display
+
+logger = logging.getLogger(__name__)
 
 
 async def get_current_user(
@@ -55,9 +59,16 @@ async def get_current_user(
     if api_key_obj.expires_at and api_key_obj.expires_at < datetime.utcnow():
         raise http_401_unauthorized("API key expired")
 
-    # Update last used timestamp
-    api_key_obj.last_used_at = datetime.utcnow()
-    db.commit()
+    # Update last used timestamp (with error handling for Issue #4 fix)
+    try:
+        api_key_obj.last_used_at = datetime.utcnow()
+        db.commit()
+    except Exception as e:
+        # Sanitize API key in error log (Issue #3 fix)
+        safe_key = get_safe_api_key_display(api_key)
+        logger.error(f"Failed to update API key last_used_at for {safe_key}: {e}")
+        db.rollback()
+        # Continue with authentication - this is non-critical
 
     # Get user
     user = db.query(User).filter(User.id == api_key_obj.user_id).first()

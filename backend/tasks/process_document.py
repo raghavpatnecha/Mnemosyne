@@ -72,11 +72,24 @@ class ProcessDocumentTask(Task):
         temp_file_path = None
 
         try:
-            document = db.query(Document).filter(Document.id == document_id).first()
+            # Use row-level locking to prevent concurrent processing (Issue #2 fix)
+            document = db.query(Document).filter(
+                Document.id == document_id
+            ).with_for_update().first()
+
             if not document:
                 logger.error(f"Document {document_id} not found")
                 return
 
+            # Validate state transition (only pending documents can be processed)
+            if document.status != "pending":
+                logger.warning(
+                    f"Document {document_id} already has status '{document.status}', "
+                    "skipping processing to prevent race condition"
+                )
+                return
+
+            # Atomically update status to processing
             document.status = "processing"
             document.processing_info["started_at"] = datetime.utcnow().isoformat()
             db.commit()
@@ -184,11 +197,15 @@ class ProcessDocumentTask(Task):
             logger.error(f"Error processing document {document_id}: {e}", exc_info=True)
 
             if document:
-                document.status = "failed"
-                document.error_message = str(e)
-                document.processing_info["error"] = str(e)
-                document.processing_info["failed_at"] = datetime.utcnow().isoformat()
-                db.commit()
+                try:
+                    document.status = "failed"
+                    document.error_message = str(e)
+                    document.processing_info["error"] = str(e)
+                    document.processing_info["failed_at"] = datetime.utcnow().isoformat()
+                    db.commit()
+                except Exception as commit_error:
+                    logger.error(f"Failed to update document status to failed: {commit_error}")
+                    db.rollback()
 
             raise
 

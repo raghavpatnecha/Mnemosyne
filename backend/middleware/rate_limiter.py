@@ -10,6 +10,7 @@ from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from fastapi import Request, HTTPException, status
 from backend.config import settings
+from backend.utils.sanitize import get_safe_api_key_display
 import logging
 
 logger = logging.getLogger(__name__)
@@ -77,8 +78,12 @@ def custom_rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded)
     """
     retry_after = exc.headers.get("Retry-After", "60")
 
+    # Sanitize API key for logging (Issue #3 fix)
+    api_key = get_api_key_from_request(request)
+    safe_key = get_safe_api_key_display(api_key) if api_key != get_remote_address(request) else api_key
+
     logger.warning(
-        f"Rate limit exceeded for {rate_limit_key(request)} "
+        f"Rate limit exceeded for {safe_key} "
         f"on {request.url.path}"
     )
 

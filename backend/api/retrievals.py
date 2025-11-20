@@ -30,6 +30,7 @@ from backend.embeddings.openai_embedder import OpenAIEmbedder
 from backend.services.lightrag_service import get_lightrag_manager
 from backend.config import settings
 from backend.core.exceptions import http_400_bad_request
+from backend.utils.metadata_validator import validate_metadata_filter
 
 router = APIRouter(prefix="/retrievals", tags=["retrievals"])
 logger = logging.getLogger(__name__)
@@ -171,6 +172,9 @@ async def retrieve(
     - ~1.5-2x latency vs base (not additive due to parallelism)
     - Improves accuracy by 35-80% for complex queries (research-backed)
     """
+    # Validate metadata filter (Issue #1 fix)
+    validated_metadata_filter = validate_metadata_filter(request.metadata_filter)
+
     # Services are now injected via dependency injection (singletons)
     embedder = OpenAIEmbedder()
     search_service = VectorSearchService(db)
@@ -183,7 +187,7 @@ async def retrieve(
         "collection_id": str(request.collection_id) if request.collection_id else None,
         "rerank": request.rerank,
         "enable_graph": request.enable_graph,
-        "metadata_filter": request.metadata_filter,
+        "metadata_filter": validated_metadata_filter,
         "user_id": str(current_user.id)
     }
 
@@ -255,7 +259,7 @@ async def retrieve(
                 collection_id=request.collection_id,
                 user_id=current_user.id,
                 top_k=request.top_k,
-                metadata_filter=request.metadata_filter
+                metadata_filter=validated_metadata_filter
             )
         elif request.mode == RetrievalMode.HYBRID:
             return search_service.hybrid_search(
