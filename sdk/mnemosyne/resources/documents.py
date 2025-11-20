@@ -78,7 +78,7 @@ class DocumentsResource:
 
     def list(
         self,
-        collection_id: Optional[UUID] = None,
+        collection_id: UUID,
         limit: int = 20,
         offset: int = 0,
         status_filter: Optional[str] = None,
@@ -87,7 +87,7 @@ class DocumentsResource:
         List documents with pagination and filtering.
 
         Args:
-            collection_id: Filter by collection UUID
+            collection_id: Collection UUID (required)
             limit: Number of results per page (1-100, default: 20)
             offset: Number of results to skip (default: 0)
             status_filter: Filter by status (pending, processing, completed, failed)
@@ -95,9 +95,11 @@ class DocumentsResource:
         Returns:
             DocumentListResponse: List of documents with pagination info
         """
-        params = {"limit": limit, "offset": offset}
-        if collection_id:
-            params["collection_id"] = str(collection_id)
+        params = {
+            "collection_id": str(collection_id),
+            "limit": limit,
+            "offset": offset
+        }
         if status_filter:
             params["status"] = status_filter
 
@@ -177,6 +179,25 @@ class DocumentsResource:
         """
         self._client.request("DELETE", f"/documents/{document_id}")
 
+    def get_url(self, document_id: UUID, expires_in: int = 3600) -> Dict:
+        """
+        Get access URL for document file.
+
+        Args:
+            document_id: Document UUID
+            expires_in: URL expiration time in seconds (default: 3600 = 1 hour)
+
+        Returns:
+            Dict with url, expires_in, filename, content_type
+
+        Raises:
+            NotFoundError: Document not found
+            ValidationError: File not found in storage
+        """
+        params = {"expires_in": expires_in}
+        response = self._client.request("GET", f"/documents/{document_id}/url", params=params)
+        return response.json()
+
 
 class AsyncDocumentsResource:
     """Asynchronous Documents resource"""
@@ -225,15 +246,17 @@ class AsyncDocumentsResource:
 
     async def list(
         self,
-        collection_id: Optional[UUID] = None,
+        collection_id: UUID,
         limit: int = 20,
         offset: int = 0,
         status_filter: Optional[str] = None,
     ) -> DocumentListResponse:
         """List documents with pagination and filtering (async)"""
-        params = {"limit": limit, "offset": offset}
-        if collection_id:
-            params["collection_id"] = str(collection_id)
+        params = {
+            "collection_id": str(collection_id),
+            "limit": limit,
+            "offset": offset
+        }
         if status_filter:
             params["status"] = status_filter
 
@@ -268,3 +291,22 @@ class AsyncDocumentsResource:
     async def delete(self, document_id: UUID) -> None:
         """Delete a document (async)"""
         await self._client.request("DELETE", f"/documents/{document_id}")
+
+    async def get_url(self, document_id: UUID, expires_in: int = 3600) -> Dict:
+        """
+        Get access URL for document file (async).
+
+        Args:
+            document_id: Document UUID
+            expires_in: URL expiration time in seconds (default: 3600 = 1 hour)
+
+        Returns:
+            Dict with url, expires_in, filename, content_type
+
+        Raises:
+            NotFoundError: Document not found
+            ValidationError: File not found in storage
+        """
+        params = {"expires_in": expires_in}
+        response = await self._client.request("GET", f"/documents/{document_id}/url", params=params)
+        return response.json()

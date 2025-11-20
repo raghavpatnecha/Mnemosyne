@@ -121,8 +121,7 @@ async function main() {
     console.log('STEP 4: Verifying ingestion');
     console.log('─'.repeat(70));
 
-    const docs = await client.documents.list({
-      collection_id: collection.id,
+    const docs = await client.documents.list(collection.id, {
       status_filter: 'completed',
     });
 

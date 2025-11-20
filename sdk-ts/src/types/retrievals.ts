@@ -52,7 +52,6 @@ export interface RetrievalResponse {
   mode: string;
   results: ChunkResult[];
   total_results: number;
-  processing_time_ms: number;
   graph_enhanced: boolean;
   graph_context?: string;
 }

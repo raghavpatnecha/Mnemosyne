@@ -3,7 +3,7 @@
  */
 
 import { BaseClient } from '../base-client.js';
-import { parseSSEStream } from '../streaming.js';
+import { parseSSEStream, SSEEvent } from '../streaming.js';
 import type {
   ChatRequest,
   ChatResponse,
@@ -21,18 +21,24 @@ export class ChatResource {
    * Send a chat message and stream the response
    *
    * @param params - Chat parameters
-   * @yields Response chunks from the assistant
+   * @yields SSE events (delta, sources, done, error)
    * @throws {ValidationError} Invalid message or parameters
    * @throws {APIError} Chat failed
    *
    * @example
    * ```typescript
    * // Streaming chat
-   * for await (const chunk of client.chat.chat({
+   * for await (const event of client.chat.chat({
    *   message: 'What are transformers?',
    *   stream: true
    * })) {
-   *   process.stdout.write(chunk);
+   *   if (event.type === 'delta') {
+   *     process.stdout.write(event.delta);
+   *   } else if (event.type === 'sources') {
+   *     console.log('Sources:', event.sources);
+   *   } else if (event.type === 'done') {
+   *     console.log('Session ID:', event.session_id);
+   *   }
    * }
    *
    * // Non-streaming
@@ -50,7 +56,7 @@ export class ChatResource {
     collection_id?: string;
     top_k?: number;
     stream?: boolean;
-  }): AsyncGenerator<string, void, unknown> {
+  }): AsyncGenerator<SSEEvent | string, void, unknown> {
     const request: ChatRequest = {
       message: params.message,
       session_id: params.session_id,
@@ -63,8 +69,8 @@ export class ChatResource {
       // Stream response using SSE
       const response = await this.client.requestStream('POST', '/chat', { json: request });
 
-      for await (const chunk of parseSSEStream(response)) {
-        yield chunk;
+      for await (const event of parseSSEStream(response)) {
+        yield event;
       }
     } else {
       // Non-streaming response
