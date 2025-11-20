@@ -3,20 +3,41 @@
  */
 
 /**
+ * SSE event types from the backend
+ */
+export interface SSEEvent {
+  type: 'delta' | 'sources' | 'done' | 'error';
+  delta?: string;
+  sources?: Array<Record<string, unknown>>;
+  done?: boolean;
+  session_id?: string;
+  error?: string;
+}
+
+/**
  * Parse Server-Sent Events from a streaming response.
  *
+ * Automatically parses JSON events and yields structured objects.
+ * Event types: delta, sources, done, error
+ *
  * @param response - Fetch Response object with streaming body
- * @yields Event data from each SSE message
+ * @yields Parsed SSE event objects
  *
  * @example
  * ```typescript
  * const response = await fetch('/chat', { ... });
- * for await (const chunk of parseSSEStream(response)) {
- *   console.log(chunk);
+ * for await (const event of parseSSEStream(response)) {
+ *   if (event.type === 'delta') {
+ *     console.log(event.delta);
+ *   } else if (event.type === 'sources') {
+ *     console.log('Sources:', event.sources);
+ *   } else if (event.type === 'done') {
+ *     console.log('Session ID:', event.session_id);
+ *   }
  * }
  * ```
  */
-export async function* parseSSEStream(response: Response): AsyncGenerator<string, void, unknown> {
+export async function* parseSSEStream(response: Response): AsyncGenerator<SSEEvent, void, unknown> {
   if (!response.body) {
     throw new Error('Response body is null');
   }
@@ -52,12 +73,18 @@ export async function* parseSSEStream(response: Response): AsyncGenerator<string
         if (trimmedLine.startsWith('data: ')) {
           const data = trimmedLine.slice(6); // Remove "data: " prefix
 
-          // Stop on [DONE] sentinel
-          if (data === '[DONE]') {
-            return;
-          }
+          try {
+            const event = JSON.parse(data) as SSEEvent;
+            yield event;
 
-          yield data;
+            // Stop on done event
+            if (event.type === 'done') {
+              return;
+            }
+          } catch {
+            // Ignore malformed JSON
+            continue;
+          }
         }
       }
     }
@@ -67,8 +94,13 @@ export async function* parseSSEStream(response: Response): AsyncGenerator<string
       const trimmedLine = buffer.trim();
       if (trimmedLine.startsWith('data: ')) {
         const data = trimmedLine.slice(6);
-        if (data !== '[DONE]') {
-          yield data;
+        try {
+          const event = JSON.parse(data) as SSEEvent;
+          if (event.type !== 'done') {
+            yield event;
+          }
+        } catch {
+          // Ignore malformed JSON
         }
       }
     }

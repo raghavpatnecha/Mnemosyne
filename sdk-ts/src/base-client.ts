@@ -192,7 +192,7 @@ export class BaseClient {
 
     // Prepare headers
     const headers = {
-      ...this.getHeaders(skipAuth),
+      ...this.getHeaders({ skipAuth }),
       ...options.headers,
     };
 
@@ -350,7 +350,7 @@ export class BaseClient {
 
     // Prepare headers for SSE
     const headers = {
-      ...this.getHeaders(skipAuth),
+      ...this.getHeaders({ skipAuth }),
       Accept: 'text/event-stream',
       ...options.headers,
     };

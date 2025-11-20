@@ -80,35 +80,34 @@ export class DocumentsResource {
   /**
    * List documents with pagination and filtering
    *
-   * @param params - Query parameters
+   * @param collectionId - Collection UUID (required)
+   * @param options - Optional query parameters
    * @returns List of documents with pagination info
    *
    * @example
    * ```typescript
-   * const docs = await client.documents.list({
-   *   collection_id: 'collection-uuid',
+   * const docs = await client.documents.list('collection-uuid', {
    *   status_filter: 'completed',
    *   limit: 20
    * });
    * ```
    */
-  async list(params?: {
-    collection_id?: string;
-    limit?: number;
-    offset?: number;
-    status_filter?: ProcessingStatus;
-  }): Promise<DocumentListResponse> {
+  async list(
+    collectionId: string,
+    options?: {
+      limit?: number;
+      offset?: number;
+      status_filter?: ProcessingStatus;
+    }
+  ): Promise<DocumentListResponse> {
     const queryParams: Record<string, string | number> = {
-      limit: params?.limit || 20,
-      offset: params?.offset || 0,
+      collection_id: collectionId,
+      limit: options?.limit || 20,
+      offset: options?.offset || 0,
     };
 
-    if (params?.collection_id) {
-      queryParams.collection_id = params.collection_id;
-    }
-
-    if (params?.status_filter) {
-      queryParams.status = params.status_filter;
+    if (options?.status_filter) {
+      queryParams.status = options.status_filter;
     }
 
     return this.client.request<DocumentListResponse>('GET', '/documents', {
@@ -186,5 +185,34 @@ export class DocumentsResource {
    */
   async delete(documentId: string): Promise<void> {
     await this.client.request<void>('DELETE', `/documents/${documentId}`);
+  }
+
+  /**
+   * Get access URL for document file
+   *
+   * @param documentId - Document UUID
+   * @param expiresIn - URL expiration time in seconds (default: 3600 = 1 hour)
+   * @returns Object with url, expires_in, filename, content_type
+   * @throws {NotFoundError} Document not found
+   * @throws {ValidationError} File not found in storage
+   *
+   * @example
+   * ```typescript
+   * const urlInfo = await client.documents.getUrl('document-uuid', 7200);
+   * console.log(`Download URL: ${urlInfo.url}`);
+   * ```
+   */
+  async getUrl(
+    documentId: string,
+    expiresIn: number = 3600
+  ): Promise<{
+    url: string;
+    expires_in: number;
+    filename: string;
+    content_type: string;
+  }> {
+    return this.client.request('GET', `/documents/${documentId}/url`, {
+      params: { expires_in: expiresIn },
+    });
   }
 }
