@@ -104,7 +104,7 @@ class Client(BaseClient):
         if "headers" not in kwargs:
             kwargs["headers"] = self._get_headers()
 
-        url = path if path.startswith("http") else f"{self.base_url}{path}"
+        url = self._prepare_request_url(path)
         last_exception = None
 
         for attempt in range(self.max_retries):
@@ -112,11 +112,10 @@ class Client(BaseClient):
                 response = self._http_client.request(method, url, **kwargs)
 
                 # Check if we should retry
-                if self._should_retry(response, None):
-                    if attempt < self.max_retries - 1:
-                        delay = self._calculate_backoff(attempt)
-                        time.sleep(delay)
-                        continue
+                if self._should_retry_attempt(attempt, response, None):
+                    delay = self._calculate_backoff(attempt)
+                    time.sleep(delay)
+                    continue
 
                 # Handle errors (raises exceptions)
                 self._handle_error(response)
@@ -124,7 +123,7 @@ class Client(BaseClient):
 
             except (httpx.RequestError, httpx.TimeoutException) as e:
                 last_exception = e
-                if attempt < self.max_retries - 1:
+                if self._should_retry_attempt(attempt, None, e):
                     delay = self._calculate_backoff(attempt)
                     time.sleep(delay)
                     continue

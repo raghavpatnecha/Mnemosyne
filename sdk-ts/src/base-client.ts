@@ -2,6 +2,7 @@
  * Base client implementation with shared logic for HTTP requests and error handling
  */
 
+import { VERSION } from './version.js';
 import {
   AuthenticationError,
   PermissionError,
@@ -78,15 +79,30 @@ export class BaseClient {
 
   /**
    * Get authentication headers for requests
+   *
+   * @param options - Header options
+   * @param options.skipAuth - Skip Authorization header (default: false)
+   * @param options.skipContentType - Skip Content-Type header for multipart uploads (default: false)
+   * @returns Headers object
    */
-  protected getHeaders(skipAuth = false): Record<string, string> {
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
+  protected getHeaders(options: {
+    skipAuth?: boolean;
+    skipContentType?: boolean;
+  } = {}): Record<string, string> {
+    const headers: Record<string, string> = {};
 
-    if (!skipAuth) {
+    // Add Authorization unless skipped
+    if (!options.skipAuth) {
       headers['Authorization'] = `Bearer ${this.apiKey}`;
     }
+
+    // Add Content-Type unless skipped (for multipart uploads)
+    if (!options.skipContentType) {
+      headers['Content-Type'] = 'application/json';
+    }
+
+    // Always add User-Agent
+    headers['User-Agent'] = `mnemosyne-typescript/${VERSION}`;
 
     return headers;
   }
@@ -211,6 +227,78 @@ export class BaseClient {
         }
 
         // Success - parse and return response
+        return (await response.json()) as T;
+      } catch (error) {
+        lastError = error as Error;
+
+        // If it's an HTTP error, don't retry
+        if (
+          error instanceof AuthenticationError ||
+          error instanceof PermissionError ||
+          error instanceof NotFoundError ||
+          error instanceof ValidationError
+        ) {
+          throw error;
+        }
+
+        // Retry on network errors
+        if (attempt < this.maxRetries - 1) {
+          const delay = this.calculateBackoff(attempt);
+          await new Promise((resolve) => setTimeout(resolve, delay));
+          continue;
+        }
+      }
+    }
+
+    // All retries exhausted
+    throw new APIError(
+      `Request failed after ${this.maxRetries} retries: ${lastError?.message || 'Unknown error'}`
+    );
+  }
+
+  /**
+   * Make an HTTP request with multipart/form-data body and retry logic
+   *
+   * This method is specifically for file uploads and handles FormData properly
+   * while maintaining retry logic and error handling.
+   */
+  async requestMultipart<T>(method: string, path: string, formData: FormData): Promise<T> {
+    // Construct URL
+    const urlString = path.startsWith('http') ? path : this.baseUrl + path;
+    const url = new URL(urlString);
+
+    // Get headers WITHOUT Content-Type (browser sets it automatically for FormData)
+    const headers = this.getHeaders({ skipContentType: true });
+
+    let lastError: Error | null = null;
+
+    for (let attempt = 0; attempt < this.maxRetries; attempt++) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), this.timeout);
+
+        const response = await fetch(url.toString(), {
+          method,
+          headers,
+          body: formData,
+          signal: controller.signal,
+        });
+
+        clearTimeout(timeoutId);
+
+        // Check for errors and decide whether to retry
+        if (!response.ok) {
+          if (this.shouldRetry(response, null) && attempt < this.maxRetries - 1) {
+            const delay = this.calculateBackoff(attempt);
+            await new Promise((resolve) => setTimeout(resolve, delay));
+            continue;
+          }
+
+          // Not retryable or out of retries
+          await this.handleErrorAsync(response);
+        }
+
+        // Success
         return (await response.json()) as T;
       } catch (error) {
         lastError = error as Error;

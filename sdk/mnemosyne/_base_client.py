@@ -3,6 +3,7 @@
 import time
 from typing import Optional, Any, Dict
 import httpx
+from .version import __version__
 from .exceptions import (
     AuthenticationError,
     PermissionError,
@@ -54,12 +55,26 @@ class BaseClient:
         # Will be set by subclasses
         self._http_client: Optional[httpx.Client] = None
 
-    def _get_headers(self) -> Dict[str, str]:
-        """Get authentication headers for requests"""
-        return {
+    def _get_headers(self, include_content_type: bool = True) -> Dict[str, str]:
+        """
+        Get authentication and default headers for requests
+
+        Args:
+            include_content_type: Whether to include Content-Type: application/json
+                                 (default: True, set to False for multipart uploads)
+
+        Returns:
+            Dict of headers including Authorization and User-Agent
+        """
+        headers = {
             "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json",
+            "User-Agent": f"mnemosyne-python/{__version__}",
         }
+
+        if include_content_type:
+            headers["Content-Type"] = "application/json"
+
+        return headers
 
     def _handle_error(self, response: httpx.Response) -> None:
         """
@@ -132,6 +147,35 @@ class BaseClient:
             float: Delay in seconds
         """
         return min(2 ** attempt, 16)  # Max 16 seconds
+
+    def _prepare_request_url(self, path: str) -> str:
+        """
+        Prepare full URL from path
+
+        Args:
+            path: Request path (e.g., "/collections") or full URL
+
+        Returns:
+            str: Full URL for request
+        """
+        return path if path.startswith("http") else f"{self.base_url}{path}"
+
+    def _should_retry_attempt(self, attempt: int, response: Optional[httpx.Response], exception: Optional[Exception]) -> bool:
+        """
+        Determine if we should retry and how long to wait
+
+        Args:
+            attempt: Current retry attempt (0-indexed)
+            response: HTTP response (if available)
+            exception: Exception raised (if any)
+
+        Returns:
+            bool: True if should retry (and not on last attempt)
+        """
+        if attempt >= self.max_retries - 1:
+            return False
+
+        return self._should_retry(response, exception)
 
     def close(self) -> None:
         """Close the HTTP client"""
