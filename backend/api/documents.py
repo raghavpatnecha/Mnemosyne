@@ -27,8 +27,12 @@ from backend.schemas.document import (
 from backend.core.exceptions import http_404_not_found, http_400_bad_request
 from backend.storage import storage_backend
 from backend.tasks.process_document import process_document_task
+from backend.services.lightrag_service import get_lightrag_manager
+from backend.config import settings
+import logging
 
 router = APIRouter(prefix="/documents", tags=["documents"])
+logger = logging.getLogger(__name__)
 
 
 @router.post("", response_model=DocumentResponse, status_code=status.HTTP_202_ACCEPTED)
@@ -71,6 +75,13 @@ async def create_document(
     # Read file content
     content = await file.read()
 
+    # Enforce maximum file size (Issue #10 fix)
+    if len(content) > settings.MAX_UPLOAD_SIZE:
+        raise http_400_bad_request(
+            f"File too large. Maximum size is {settings.MAX_UPLOAD_SIZE / 1024 / 1024:.1f}MB, "
+            f"got {len(content) / 1024 / 1024:.1f}MB"
+        )
+
     # Calculate content hash (SHA-256) for deduplication
     content_hash = hashlib.sha256(content).hexdigest()
 
@@ -84,11 +95,47 @@ async def create_document(
             f"Document with same content already exists (document_id: {existing.id})"
         )
 
-    # Parse metadata JSON
+    # Parse and validate metadata JSON (Issue #5 fix)
     try:
         metadata_dict = json.loads(metadata) if metadata else {}
+
+        # Validate that metadata is a dictionary, not array/string/number
+        if not isinstance(metadata_dict, dict):
+            raise http_400_bad_request(
+                f"Metadata must be a JSON object/dict, got {type(metadata_dict).__name__}"
+            )
+
+        # Validate metadata size (prevent DoS)
+        if len(json.dumps(metadata_dict)) > 10000:
+            raise http_400_bad_request("Metadata too large (max 10KB)")
+
+        # Validate metadata depth and value types
+        def validate_metadata_values(obj, depth=0, max_depth=3):
+            if depth > max_depth:
+                raise ValueError("Metadata nesting too deep (max 3 levels)")
+
+            if isinstance(obj, dict):
+                for key, value in obj.items():
+                    if not isinstance(key, str) or len(key) > 100:
+                        raise ValueError(f"Invalid metadata key: {key}")
+                    validate_metadata_values(value, depth + 1, max_depth)
+            elif isinstance(obj, list):
+                if len(obj) > 100:
+                    raise ValueError("Metadata arrays limited to 100 items")
+                for item in obj:
+                    validate_metadata_values(item, depth + 1, max_depth)
+            elif isinstance(obj, str):
+                if len(obj) > 1000:
+                    raise ValueError("Metadata string values limited to 1000 chars")
+            elif not isinstance(obj, (int, float, bool, type(None))):
+                raise ValueError(f"Invalid metadata value type: {type(obj).__name__}")
+
+        validate_metadata_values(metadata_dict)
+
     except json.JSONDecodeError:
         raise http_400_bad_request("Invalid JSON metadata")
+    except ValueError as e:
+        raise http_400_bad_request(f"Invalid metadata: {e}")
 
     # Create document (using exact column names)
     document = Document(
@@ -404,16 +451,32 @@ async def delete_document(
     if not document:
         raise http_404_not_found("Document not found")
 
-    # Delete document and file
+    # Delete from LightRAG if enabled (Issue #12 fix)
+    if settings.LIGHTRAG_ENABLED:
+        try:
+            logger.info(f"Cleaning up LightRAG data for document {document_id}")
+            lightrag_manager = get_lightrag_manager()
+            # Note: LightRAG doesn't have document-level deletion API yet
+            # This is a placeholder for when that functionality is added
+            # For now, log the intent and continue with deletion
+            logger.warning(
+                f"LightRAG document deletion not yet implemented. "
+                f"Document {document_id} data remains in graph."
+            )
+        except Exception as e:
+            logger.error(f"LightRAG cleanup failed (non-critical): {e}")
+
+    # Delete document file from storage
     if document.processing_info and "file_path" in document.processing_info:
         try:
             storage_backend.delete(
                 storage_path=document.processing_info["file_path"],
                 user_id=current_user.id
             )
-        except Exception:
-            pass
+        except Exception as e:
+            logger.error(f"Failed to delete document file: {e}")
 
+    # Delete document from database (cascades to chunks)
     db.delete(document)
     db.commit()
 

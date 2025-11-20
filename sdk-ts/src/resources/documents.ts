@@ -73,26 +73,8 @@ export class DocumentsResource {
     formData.append('collection_id', collectionId);
     formData.append('metadata', JSON.stringify(metadata || {}));
 
-    // Make request with multipart/form-data
-    // Note: We bypass the normal request() method because multipart/form-data
-    // requires special handling (FormData body, no Content-Type header)
-    const urlString = this.client.baseUrl + '/documents';
-    const url = new URL(urlString);
-
-    const headers = {
-      Authorization: `Bearer ${this.client.apiKey}`,
-    };
-
-    const response = await fetch(url.toString(), {
-      method: 'POST',
-      headers,
-      body: formData,
-    });
-
-    // Handle errors
-    await this.client.handleErrorAsync(response);
-
-    return (await response.json()) as DocumentResponse;
+    // Use requestMultipart() which includes retry logic and proper error handling
+    return this.client.requestMultipart<DocumentResponse>('POST', '/documents', formData);
   }
 
   /**

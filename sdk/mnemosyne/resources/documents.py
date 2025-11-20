@@ -61,8 +61,8 @@ class DocumentsResource:
                 "metadata": json.dumps(metadata or {}),
             }
 
-            # Don't set Content-Type header - let httpx handle multipart/form-data
-            headers = {"Authorization": f"Bearer {self._client.api_key}"}
+            # Use base headers without Content-Type (httpx handles multipart/form-data)
+            headers = self._client._get_headers(include_content_type=False)
             response = self._client._http_client.post(
                 f"{self._client.base_url}/documents",
                 files=files,
@@ -208,7 +208,8 @@ class AsyncDocumentsResource:
                 "metadata": json.dumps(metadata or {}),
             }
 
-            headers = {"Authorization": f"Bearer {self._client.api_key}"}
+            # Use base headers without Content-Type (httpx handles multipart/form-data)
+            headers = self._client._get_headers(include_content_type=False)
             response = await self._client._http_client.post(
                 f"{self._client.base_url}/documents",
                 files=files,
