@@ -8,6 +8,9 @@
 
 # Mnemosyne
 
+[![Run in Smithery](https://smithery.ai/badge/skills/raghavpatnecha)](https://smithery.ai/skills?ns=raghavpatnecha&utm_source=github&utm_medium=badge)
+
+
 **Open-Source RAG-as-a-Service Platform**
 
 Mnemosyne is an intelligent, production-ready RAG (Retrieval-Augmented Generation) platform that makes building AI-powered search and chat applications simple. Upload your documents, search semantically, and build conversational AI - all through a clean API and Python SDK.
