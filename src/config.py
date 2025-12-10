@@ -27,3 +27,9 @@ class Config:
         """Chat Configuration"""
         STREAM: bool = True  # Enable streaming by default
         TOP_K: int = 5  # Number of chunks to retrieve for chat context
+        # New enhanced chat features
+        PRESET: str = os.getenv("MNEMOSYNE_CHAT_PRESET", "detailed")  # concise, detailed, research, technical, creative
+        REASONING_MODE: str = os.getenv("MNEMOSYNE_REASONING_MODE", "standard")  # standard, deep
+        MODEL: str = os.getenv("MNEMOSYNE_CHAT_MODEL", "")  # Empty = use backend default (gpt-4o-mini)
+        TEMPERATURE: float = float(os.getenv("MNEMOSYNE_TEMPERATURE", "0")) or None  # 0 = use preset default
+        MAX_TOKENS: int = int(os.getenv("MNEMOSYNE_MAX_TOKENS", "0")) or None  # 0 = use preset default

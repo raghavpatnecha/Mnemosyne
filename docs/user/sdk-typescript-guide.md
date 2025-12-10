@@ -70,7 +70,75 @@ for await (const chunk of client.chat.chat({
   collection_id: collection.id,
   stream: true,
 })) {
-  process.stdout.write(chunk);
+  if (chunk.type === 'delta' && chunk.content) {
+    process.stdout.write(chunk.content);
+  } else if (chunk.type === 'sources') {
+    console.log('\nSources:', chunk.sources?.map(s => s.title));
+  }
+}
+```
+
+### Non-Streaming Chat
+
+```typescript
+// Get complete response
+const response = await client.chat.chatComplete({
+  message: 'Explain the key concepts',
+  collection_id: collection.id,
+});
+console.log(response.response);
+console.log('Sources:', response.sources);
+```
+
+### Custom Instructions & Question Generation
+
+```typescript
+// Generate MCQs using qna preset with custom instruction
+for await (const chunk of client.chat.chat({
+  message: 'Create questions about machine learning',
+  preset: 'qna',  // Question generation mode
+  custom_instruction: 'Generate 10 MCQs with 4 options each. Mark the correct answer.',
+})) {
+  if (chunk.type === 'delta') {
+    process.stdout.write(chunk.content || '');
+  }
+}
+
+// Focus on specific aspects with custom instruction
+for await (const chunk of client.chat.chat({
+  message: 'Analyze this codebase',
+  preset: 'technical',
+  custom_instruction: 'Focus on security vulnerabilities and potential exploits',
+})) {
+  if (chunk.type === 'delta') {
+    process.stdout.write(chunk.content || '');
+  }
+}
+```
+
+### Follow-up Questions with Context Preservation
+
+```typescript
+// Initial question
+let sessionId: string | undefined;
+for await (const chunk of client.chat.chat({ message: 'What is RAG?' })) {
+  if (chunk.type === 'delta') {
+    process.stdout.write(chunk.content || '');
+  } else if (chunk.type === 'done' && chunk.metadata) {
+    sessionId = chunk.metadata.session_id;
+  }
+}
+console.log();
+
+// Follow-up with context preservation
+for await (const chunk of client.chat.chat({
+  message: 'How does it compare to fine-tuning?',
+  session_id: sessionId,
+  is_follow_up: true,  // Preserves context from previous exchange
+})) {
+  if (chunk.type === 'delta') {
+    process.stdout.write(chunk.content || '');
+  }
 }
 ```
 

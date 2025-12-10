@@ -80,7 +80,13 @@ mnemosyne/
 Logical groupings of documents. Each user can create multiple collections to organize their content.
 
 ### Documents
-Files (PDF, DOCX, MP4, YouTube) uploaded to collections. Documents are processed, chunked, and indexed.
+Files uploaded to collections. Supports 14 parsers including:
+- **Documents**: PDF, DOCX, HTML, TXT, MD
+- **Data**: JSON, JSONL, XLSX, XLS
+- **Media**: MP4, AVI, MOV, MP3, WAV, YouTube
+- **Images**: PNG, JPG, GIF (with OCR/vision)
+- **Email**: EML (with attachments)
+- **Presentations**: PPTX, PPT
 
 ### Search Modes
 - **Semantic**: Vector similarity search
@@ -98,6 +104,10 @@ Conversational AI with RAG-powered responses. Supports streaming and multi-turn 
 - **Database**: PostgreSQL 16 + pgvector
 - **Search**: LightRAG + hybrid search + reranking
 - **Processing**: Celery + Redis + Docling + Chonkie
+- **Parsers**: 14 format parsers (PDF, PPTX, JSON, Email, etc.)
+- **Processors**: 9 domain processors (Academic, Legal, Resume, etc.)
+- **Vision**: Layout recognition + OCR (optional PaddleOCR)
+- **NLP**: Synonym expansion + query reformulation
 - **LLM**: LiteLLM (150+ models supported)
 - **Embeddings**: OpenAI text-embedding-3-large
 

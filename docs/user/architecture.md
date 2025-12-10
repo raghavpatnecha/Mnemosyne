@@ -240,11 +240,59 @@ User Query
 4. **Nginx** - Optional (production reverse proxy)
 5. **Monitoring** - Optional but recommended
 
+## Document Processing Pipeline
+
+### Parsers (14 total)
+
+Mnemosyne supports parsing of various file formats:
+
+| Parser | File Types | Description |
+|--------|------------|-------------|
+| Docling | PDF, DOCX, HTML | Primary document parser |
+| PPT | PPTX, PPT | PowerPoint presentations |
+| JSON | JSON, JSONL | Structured data |
+| Email | EML | Email messages with attachments |
+| Excel | XLSX, XLS | Spreadsheets |
+| Image | PNG, JPG, GIF | Images with OCR/vision |
+| Video | MP4, AVI, MOV | Video with transcription |
+| Audio | MP3, WAV | Audio transcription |
+| YouTube | URLs | YouTube video processing |
+| Text | TXT, MD | Plain text files |
+| Figure | Embedded | Figure extraction from documents |
+
+### Processors (9 total)
+
+Domain-specific processors enhance chunking and metadata:
+
+| Processor | Purpose | Detection Keywords |
+|-----------|---------|-------------------|
+| Academic | Research papers | abstract, methodology, references |
+| Legal | Legal documents | whereas, hereby, jurisdiction |
+| QA | FAQ documents | question, answer, faq |
+| Table | Structured tables | Auto-detected from content |
+| Book | Books/chapters | chapter, section, volume |
+| Email | Email threads | From:, To:, Subject: |
+| Manual | Technical docs | guide, how-to, installation |
+| Presentation | Slide decks | slide, presentation, deck |
+| Resume | CVs/resumes | experience, skills, education |
+
+### Vision Pipeline (Optional)
+
+For advanced document analysis:
+
+- **Layout Recognizer**: YOLOv10-based detection (10 layout types)
+- **OCR Service**: PaddleOCR for text extraction
+- **Vision Operators**: Image preprocessing utilities
+
+---
+
 ## Summary
 
 Your architecture is **hybrid multi-modal RAG**:
 - PostgreSQL handles 4 search modes (semantic, keyword, hybrid, hierarchical)
 - LightRAG handles 1 mode (graph) with knowledge graph
 - Both work together for comprehensive RAG coverage
+- 14 parsers support diverse file formats
+- 9 domain processors provide specialized handling
 
 This gives users flexibility to choose the best retrieval method for their query!

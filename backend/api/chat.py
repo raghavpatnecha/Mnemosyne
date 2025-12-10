@@ -1,99 +1,176 @@
 """
 Chat API endpoints
-Conversational retrieval with RAG and SSE streaming
+RAG-powered conversational AI with SSE streaming
+Uses retrieval endpoint internally for all search operations
 """
 
+import logging
 from fastapi import APIRouter, Depends, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Union
 from uuid import UUID, uuid4
-import json
 
 from backend.database import get_db
+from backend.core.exceptions import http_400_bad_request, http_404_not_found
 from backend.api.deps import get_current_user
 from backend.models.user import User
 from backend.schemas.chat import (
     ChatRequest,
+    ChatCompletionResponse,
     ChatSessionResponse,
-    ChatMessageResponse
+    ChatMessageResponse,
+    StreamChunk
 )
 from backend.services.chat_service import ChatService
 from backend.models.chat_session import ChatSession
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/chat", tags=["chat"])
 
 
-@router.post("", response_class=StreamingResponse)
+@router.post(
+    "",
+    response_model=ChatCompletionResponse,
+    responses={
+        200: {
+            "description": "Chat response (streaming or non-streaming)",
+            "content": {
+                "application/json": {"schema": {"$ref": "#/components/schemas/ChatCompletionResponse"}},
+                "text/event-stream": {"schema": {"type": "string"}}
+            }
+        }
+    }
+)
 async def chat(
     request: ChatRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
-):
+) -> Union[ChatCompletionResponse, StreamingResponse]:
     """
-    Chat with RAG and streaming
+    RAG-powered chat with optional streaming
 
-    Supports Server-Sent Events (SSE) streaming for real-time responses.
-    Retrieves relevant context from documents and generates AI responses.
+    Uses the retrieval endpoint internally for all search operations,
+    inheriting all its optimizations (LightRAG, reranking, hierarchical search).
+
+    Request Formats:
+        OpenAI-compatible messages array (recommended):
+        ```json
+        {
+          "messages": [
+            {"role": "system", "content": "You are a helpful assistant"},
+            {"role": "user", "content": "What is machine learning?"}
+          ],
+          "collection_id": "uuid-here",
+          "stream": true,
+          "retrieval": {"mode": "hybrid", "top_k": 5, "enable_graph": true},
+          "generation": {"model": "gpt-4o-mini", "temperature": 0.7}
+        }
+        ```
+
+        Legacy single message (deprecated):
+        ```json
+        {
+          "message": "What is machine learning?",
+          "collection_id": "uuid-here"
+        }
+        ```
+
+    Streaming Response (SSE):
+        ```
+        data: {"type": "sources", "sources": [{...}]}
+        data: {"type": "graph_context", "graph_context": {...}}
+        data: {"type": "delta", "content": "Machine"}
+        data: {"type": "delta", "content": " learning"}
+        data: {"type": "usage", "usage": {...}}
+        data: {"type": "done", "metadata": {...}}
+        ```
+
+    Non-Streaming Response:
+        Returns ChatCompletionResponse with query, response, sources,
+        graph_context, usage, and metadata.
 
     Args:
-        request: Chat request (message, session_id, etc.)
+        request: Chat request with messages/message, configs
         db: Database session
         current_user: Authenticated user
 
     Returns:
-        StreamingResponse: SSE stream with deltas, sources, done
-
-    Example Request:
-        ```json
-        {
-          "message": "What is machine learning?",
-          "session_id": null,
-          "collection_id": "uuid-here",
-          "top_k": 5,
-          "stream": true
-        }
-        ```
-
-    SSE Response Format:
-        ```
-        data: {"type": "delta", "delta": "Machine"}
-        data: {"type": "delta", "delta": " learning"}
-        data: {"type": "sources", "sources": [{...}]}
-        data: {"type": "done", "done": true, "session_id": "uuid"}
-        ```
+        ChatCompletionResponse or StreamingResponse (SSE)
     """
     session_id = request.session_id or uuid4()
-
     chat_service = ChatService(db)
 
-    async def event_stream():
-        """Generate SSE events"""
-        try:
-            async for event in chat_service.chat_stream(
-                session_id=session_id,
-                user_message=request.message,
-                user_id=current_user.id,
-                collection_id=request.collection_id,
-                top_k=request.top_k
-            ):
-                yield f"data: {json.dumps(event)}\n\n"
-        except Exception as e:
-            error_event = {
-                "type": "error",
-                "error": str(e)
-            }
-            yield f"data: {json.dumps(error_event)}\n\n"
+    # Extract user message
+    try:
+        user_message = request.get_user_message()
+    except ValueError as e:
+        raise http_400_bad_request(str(e))
 
-    return StreamingResponse(
-        event_stream(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no"
-        }
-    )
+    # Get optional system prompt
+    system_prompt = request.get_system_prompt()
+
+    # DEBUG: Log collection_id at API entry point
+    logger.info(f"[DEBUG] /chat endpoint received collection_id={request.collection_id}")
+
+    if request.stream:
+        # Streaming mode
+        async def event_stream():
+            """Generate SSE events from StreamChunk objects"""
+            try:
+                async for chunk in chat_service.chat_stream(
+                    session_id=session_id,
+                    user_message=user_message,
+                    user=current_user,
+                    collection_id=request.collection_id,
+                    retrieval_config=request.retrieval,
+                    generation_config=request.generation,
+                    system_prompt=system_prompt,
+                    # NEW: Enhanced parameters
+                    model=request.model,
+                    preset=request.preset.value,
+                    reasoning_mode=request.reasoning_mode.value,
+                    temperature=request.temperature,
+                    max_tokens=request.max_tokens,
+                    # NEW: Custom instruction and follow-up
+                    custom_instruction=request.custom_instruction,
+                    is_follow_up=request.is_follow_up,
+                ):
+                    # Convert StreamChunk to SSE data
+                    yield f"data: {chunk.model_dump_json()}\n\n"
+            except Exception as e:
+                error_chunk = StreamChunk(type="error", error=str(e))
+                yield f"data: {error_chunk.model_dump_json()}\n\n"
+
+        return StreamingResponse(
+            event_stream(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no"
+            }
+        )
+    else:
+        # Non-streaming mode
+        return await chat_service.chat(
+            session_id=session_id,
+            user_message=user_message,
+            user=current_user,
+            collection_id=request.collection_id,
+            retrieval_config=request.retrieval,
+            generation_config=request.generation,
+            system_prompt=system_prompt,
+            # NEW: Enhanced parameters
+            model=request.model,
+            preset=request.preset.value,
+            reasoning_mode=request.reasoning_mode.value,
+            temperature=request.temperature,
+            max_tokens=request.max_tokens,
+            # NEW: Custom instruction and follow-up
+            custom_instruction=request.custom_instruction,
+            is_follow_up=request.is_follow_up,
+        )
 
 
 @router.get("/sessions", response_model=List[ChatSessionResponse])
@@ -107,13 +184,13 @@ async def list_sessions(
     List chat sessions for current user
 
     Args:
-        limit: Max sessions to return
+        limit: Max sessions to return (default: 20)
         offset: Offset for pagination
         db: Database session
         current_user: Authenticated user
 
     Returns:
-        List of chat sessions ordered by last_message_at
+        List of chat sessions ordered by last_message_at (most recent first)
     """
     sessions = db.query(ChatSession).filter(
         ChatSession.user_id == current_user.id
@@ -142,7 +219,7 @@ async def get_session_messages(
     current_user: User = Depends(get_current_user)
 ):
     """
-    Get messages for a session
+    Get messages for a chat session
 
     Args:
         session_id: Session UUID
@@ -161,7 +238,6 @@ async def get_session_messages(
     ).first()
 
     if not session:
-        from backend.core.exceptions import http_404_not_found
         raise http_404_not_found("Session not found")
 
     return [
@@ -202,7 +278,6 @@ async def delete_session(
     ).first()
 
     if not session:
-        from backend.core.exceptions import http_404_not_found
         raise http_404_not_found("Session not found")
 
     db.delete(session)

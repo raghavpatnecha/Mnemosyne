@@ -17,6 +17,8 @@ class ExcelParser:
 
     def can_parse(self, content_type: str) -> bool:
         """Check if this parser can handle the content type"""
+        if not content_type:
+            return False
         return content_type in self.SUPPORTED_FORMATS
 
     def _dataframe_to_markdown(self, df: pd.DataFrame) -> str:

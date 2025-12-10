@@ -73,6 +73,8 @@ class VideoParser:
         Returns:
             True if parser supports this content type
         """
+        if not content_type:
+            return False
         return content_type in self.SUPPORTED_FORMATS or content_type.startswith("video/")
 
     async def transcribe_audio(self, audio_path: str) -> Dict[str, Any]:

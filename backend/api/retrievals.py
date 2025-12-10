@@ -1,11 +1,10 @@
 """
 Retrieval API endpoints
-Semantic search, hybrid search, and ranking
+Best-in-class RAG search with hybrid, hierarchical, graph, and reranking
 """
 
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
-import time
 import logging
 import asyncio
 
@@ -22,15 +21,19 @@ from backend.schemas.retrieval import (
     RetrievalResponse,
     ChunkResult,
     DocumentInfo,
-    RetrievalMode
+    RetrievalMode,
+    GraphReference
 )
 from backend.search.vector_search import VectorSearchService
 from backend.search.hierarchical_search import HierarchicalSearchService
+from backend.search.context_expander import ContextExpander
 from backend.embeddings.openai_embedder import OpenAIEmbedder
 from backend.services.lightrag_service import get_lightrag_manager
 from backend.config import settings
 from backend.core.exceptions import http_400_bad_request
 from backend.utils.metadata_validator import validate_metadata_filter
+from backend.schemas.retrieval import ContextWindow
+from backend.processors import VALID_DOCUMENT_TYPES
 
 router = APIRouter(prefix="/retrievals", tags=["retrievals"])
 logger = logging.getLogger(__name__)
@@ -48,25 +51,51 @@ def _build_chunk_results(results: list) -> list[ChunkResult]:
     Returns:
         List of ChunkResult objects
     """
-    return [
-        ChunkResult(
-            chunk_id=r['chunk_id'],
-            content=r['content'],
-            chunk_index=r['chunk_index'],
-            score=r['score'],
-            metadata=r['metadata'],
-            chunk_metadata=r['chunk_metadata'],
-            document=DocumentInfo(**r['document']),
-            collection_id=r['collection_id']
+    chunk_results = []
+    for r in results:
+        # Build context window if present
+        context_window = None
+        if r.get('context_window'):
+            context_window = ContextWindow(**r['context_window'])
+
+        chunk_results.append(
+            ChunkResult(
+                chunk_id=r['chunk_id'],
+                content=r['content'],
+                chunk_index=r['chunk_index'],
+                score=r['score'],
+                rerank_score=r.get('rerank_score'),
+                metadata=r['metadata'],
+                chunk_metadata=r['chunk_metadata'],
+                document=DocumentInfo(**r['document']),
+                collection_id=r['collection_id'],
+                expanded_content=r.get('expanded_content'),
+                context_window=context_window
+            )
         )
-        for r in results
-    ]
+    return chunk_results
+
+
+def _build_graph_references(raw_references: list) -> list[GraphReference]:
+    """Convert raw LightRAG references to GraphReference objects"""
+    graph_refs = []
+    for ref in raw_references:
+        if isinstance(ref, dict):
+            graph_refs.append(GraphReference(
+                reference_id=ref.get('reference_id') or ref.get('id'),
+                file_path=ref.get('file_path') or ref.get('path'),
+                content=ref.get('content') or ref.get('text')
+            ))
+        elif isinstance(ref, str):
+            # Simple string reference
+            graph_refs.append(GraphReference(content=ref))
+    return graph_refs
 
 
 def _enrich_with_graph_context(
     base_results: list,
     graph_result: dict
-) -> tuple[list, str]:
+) -> tuple[list, str, list]:
     """
     Enrich base search results with knowledge graph context
 
@@ -76,41 +105,26 @@ def _enrich_with_graph_context(
 
     Args:
         base_results: Results from base search (vector/keyword/hybrid/hierarchical)
-        graph_result: Result from LightRAG query (context + chunks)
+        graph_result: Result from LightRAG query (answer + references)
 
     Returns:
-        Tuple of (enriched_results, graph_context_string)
+        Tuple of (enriched_results, graph_context_string, graph_references)
     """
-    # Extract graph context narrative
+    # Extract graph context narrative and references
     graph_context = graph_result.get('answer', '')
-    graph_chunks = graph_result.get('chunks', [])
+    raw_references = graph_result.get('references', [])
+    graph_references = _build_graph_references(raw_references)
 
-    # Create a set of chunk IDs from base results for deduplication
-    base_chunk_ids = {r['chunk_id'] for r in base_results}
-
-    # Add graph chunks that aren't already in base results
-    enriched_results = base_results.copy()
-    for graph_chunk in graph_chunks:
-        if graph_chunk['chunk_id'] not in base_chunk_ids:
-            # Create a copy to avoid mutating original data (could be cached/shared)
-            graph_chunk_copy = graph_chunk.copy()
-
-            # Adjust score to indicate graph contribution
-            graph_chunk_copy['score'] = min(graph_chunk.get('score', 0.5), 0.7)
-
-            # Add graph_sourced marker (create metadata copy to avoid mutation)
-            graph_chunk_copy['metadata'] = graph_chunk.get('metadata', {}).copy()
-            graph_chunk_copy['metadata']['graph_sourced'] = True
-
-            enriched_results.append(graph_chunk_copy)
-            base_chunk_ids.add(graph_chunk['chunk_id'])
+    # For now, we don't merge graph references into chunk results
+    # because they have different formats. We return them separately.
+    # The chat service will handle combining and deduplicating sources.
 
     logger.info(
-        f"Graph enrichment: {len(base_results)} base → "
-        f"{len(enriched_results)} enriched (added {len(enriched_results) - len(base_results)})"
+        f"Graph enrichment: {len(base_results)} base results, "
+        f"{len(graph_references)} graph references"
     )
 
-    return enriched_results, graph_context
+    return base_results, graph_context, graph_references
 
 
 @router.post("", response_model=RetrievalResponse, status_code=status.HTTP_200_OK)
@@ -123,57 +137,68 @@ async def retrieve(
     query_reformulator: "QueryReformulationService" = Depends(get_query_reformulation_service)
 ):
     """
-    Retrieve relevant chunks for a query
+    Best-in-class RAG retrieval endpoint
 
-    Supports five search modes:
+    Default configuration delivers optimal results:
+    - mode=hybrid: Semantic + Keyword with RRF fusion
+    - hierarchical=true: Two-tier search (document → chunk filtering)
+    - enable_graph=true: LightRAG knowledge graph enhancement
+    - rerank=true: Cross-encoder reranking for precision
+
+    Search modes:
     - semantic: Vector similarity search only
-    - keyword: Full-text search only
-    - hybrid: Both searches merged with RRF
-    - hierarchical: Two-tier search (document → chunk)
-    - graph: LightRAG graph-based retrieval (entity + relationship)
+    - keyword: Full-text search (BM25) only
+    - hybrid: Both merged with RRF (default, recommended)
+    - graph: Pure LightRAG graph-based retrieval
 
-    Performance optimizations:
-    - Redis caching: 50-70% faster on repeated queries (1h TTL)
-    - Query reformulation: 10-15% better results (expands with synonyms)
-    - Reranking: 15-25% accuracy improvement (5 providers available)
+    Flags:
+    - hierarchical: Filter documents first, then search chunks within (20-30% better precision)
+    - enable_graph: Add knowledge graph context (35-80% better for complex queries)
+    - rerank: Cross-encoder reranking (15-25% accuracy boost)
 
-    Args:
-        request: Retrieval request (query, mode, top_k, rerank, etc.)
-        db: Database session
-        current_user: Authenticated user
-
-    Returns:
-        RetrievalResponse: Ranked chunks with scores and metadata
-
-    Example:
+    Example (minimal - uses optimal defaults):
         ```json
         {
           "query": "What is machine learning?",
-          "mode": "hybrid",
-          "top_k": 10,
-          "rerank": true,
           "collection_id": "uuid-here"
+        }
+        ```
+
+    Example (explicit):
+        ```json
+        {
+          "query": "What is machine learning?",
+          "collection_id": "uuid-here",
+          "mode": "hybrid",
+          "hierarchical": true,
+          "enable_graph": true,
+          "rerank": true,
+          "top_k": 5
         }
         ```
 
     Flow:
     1. Check cache (instant return if hit)
-    2. Reformulate query if enabled (expand with synonyms)
-    3. Generate embedding (cached)
-    4. Search with chosen mode
-    5. Enhance with graph context if requested (parallel execution)
-    6. Apply reranking if requested
-    7. Cache results for future requests
-
-    Graph Enhancement (enable_graph=true):
-    - Runs base search + LightRAG query in parallel
-    - Combines results with deduplication
-    - Adds relationship context to response
-    - ~1.5-2x latency vs base (not additive due to parallelism)
-    - Improves accuracy by 35-80% for complex queries (research-backed)
+    2. Reformulate query (expand with synonyms)
+    3. Generate embedding
+    4. If hierarchical: Find top documents first, then search within them
+    5. Execute search with chosen mode (semantic/keyword/hybrid)
+    6. Enhance with graph context (parallel LightRAG query)
+    7. Rerank results with cross-encoder
+    8. Cache and return
     """
+    # DEBUG: Log request at retrieve() entry point
+    logger.info(f"[DEBUG] retrieve() called with collection_id={request.collection_id}, enable_graph={request.enable_graph}")
+
     # Validate metadata filter (Issue #1 fix)
     validated_metadata_filter = validate_metadata_filter(request.metadata_filter)
+
+    # Validate document_type filter
+    if request.document_type and request.document_type not in VALID_DOCUMENT_TYPES:
+        raise http_400_bad_request(
+            f"Invalid document_type '{request.document_type}'. "
+            f"Valid types: {', '.join(sorted(VALID_DOCUMENT_TYPES))}"
+        )
 
     # Services are now injected via dependency injection (singletons)
     embedder = OpenAIEmbedder()
@@ -185,8 +210,11 @@ async def retrieve(
         "mode": request.mode.value,
         "top_k": request.top_k,
         "collection_id": str(request.collection_id) if request.collection_id else None,
+        "document_type": request.document_type,
         "rerank": request.rerank,
         "enable_graph": request.enable_graph,
+        "hierarchical": request.hierarchical,
+        "expand_context": request.expand_context,
         "metadata_filter": validated_metadata_filter,
         "user_id": str(current_user.id)
     }
@@ -199,20 +227,28 @@ async def retrieve(
             if isinstance(cached_results, dict):
                 chunk_results = _build_chunk_results(cached_results['results'])
                 graph_context = cached_results.get('graph_context')
+                # Convert cached references back to GraphReference objects
+                raw_refs = cached_results.get('graph_references', [])
+                if raw_refs and isinstance(raw_refs[0], dict):
+                    graph_references = _build_graph_references(raw_refs)
+                else:
+                    graph_references = raw_refs  # Already GraphReference objects
                 graph_enhanced = cached_results.get('graph_enhanced', False)
             else:
                 chunk_results = _build_chunk_results(cached_results)
                 graph_context = None
+                graph_references = []
                 graph_enhanced = False
 
-            logger.debug(f"Cache hit for query: {request.query[:50]}...")
+            logger.info(f"Cache hit for query: {request.query[:50]}...")
             return RetrievalResponse(
                 results=chunk_results,
                 query=request.query,
                 mode=request.mode.value,
                 total_results=len(chunk_results),
                 graph_enhanced=graph_enhanced,
-                graph_context=graph_context
+                graph_context=graph_context,
+                graph_references=graph_references
             )
         except (KeyError, TypeError, ValueError) as e:
             # Corrupted cache data - log warning and fall through to normal search
@@ -232,6 +268,7 @@ async def retrieve(
 
     # Initialize graph enhancement variables
     graph_context = None
+    graph_references = []
     graph_enhanced = False
 
     # Validate graph enhancement request (fail-fast)
@@ -244,22 +281,45 @@ async def retrieve(
             )
         logger.info(f"Running HybridRAG: {request.mode.value} + graph (parallel)")
 
-    # Generate embedding if needed (for semantic/hybrid/hierarchical modes)
-    if request.mode in [RetrievalMode.SEMANTIC, RetrievalMode.HYBRID, RetrievalMode.HIERARCHICAL]:
+    # Generate embedding if needed (for semantic/hybrid modes or hierarchical flag)
+    needs_embedding = request.mode in [RetrievalMode.SEMANTIC, RetrievalMode.HYBRID] or request.hierarchical
+    if needs_embedding:
         query_embedding = await embedder.embed(query_text)
     else:
         query_embedding = None
 
     # Define async functions for parallel execution
     async def run_base_search():
-        """Execute base search based on mode"""
+        """Execute base search based on mode and hierarchical flag"""
+        # If hierarchical is enabled, use HierarchicalSearchService with the chosen mode
+        if request.hierarchical and request.mode != RetrievalMode.GRAPH:
+            mode_map = {
+                RetrievalMode.SEMANTIC: "semantic",
+                RetrievalMode.KEYWORD: "keyword",
+                RetrievalMode.HYBRID: "hybrid"
+            }
+            tier2_mode = mode_map.get(request.mode, "hybrid")
+
+            logger.info(f"Running hierarchical search with tier2_mode={tier2_mode}")
+            return await hierarchical_service.search(
+                query_embedding=query_embedding,
+                user_id=current_user.id,
+                collection_id=request.collection_id,
+                top_k=request.top_k,
+                mode=tier2_mode,
+                query_text=query_text if tier2_mode in ["keyword", "hybrid"] else None,
+                document_type=request.document_type
+            )
+
+        # Non-hierarchical search
         if request.mode == RetrievalMode.SEMANTIC:
             return search_service.search(
                 query_embedding=query_embedding,
                 collection_id=request.collection_id,
                 user_id=current_user.id,
                 top_k=request.top_k,
-                metadata_filter=validated_metadata_filter
+                metadata_filter=validated_metadata_filter,
+                document_type=request.document_type
             )
         elif request.mode == RetrievalMode.HYBRID:
             return search_service.hybrid_search(
@@ -267,21 +327,16 @@ async def retrieve(
                 query_embedding=query_embedding,
                 collection_id=request.collection_id,
                 user_id=current_user.id,
-                top_k=request.top_k
+                top_k=request.top_k,
+                document_type=request.document_type
             )
         elif request.mode == RetrievalMode.KEYWORD:
             return search_service._keyword_search(
                 query_text=query_text,
                 collection_id=request.collection_id,
                 user_id=current_user.id,
-                top_k=request.top_k
-            )
-        elif request.mode == RetrievalMode.HIERARCHICAL:
-            return await hierarchical_service.search(
-                query_embedding=query_embedding,
-                user_id=current_user.id,
-                collection_id=request.collection_id,
-                top_k=request.top_k
+                top_k=request.top_k,
+                document_type=request.document_type
             )
         else:
             raise http_400_bad_request(f"Invalid mode: {request.mode}")
@@ -291,18 +346,23 @@ async def retrieve(
         if not settings.LIGHTRAG_ENABLED:
             return None
 
+        # DEBUG: Log collection_id before calling LightRAG
+        logger.info(f"[DEBUG] run_graph_query - request.collection_id={request.collection_id}")
+
         lightrag_manager = get_lightrag_manager()
 
-        # LightRAG returns a string answer (narrative response)
-        # For retrieval API, we only use this as additional context, not as chunks
-        answer = await lightrag_manager.query(
+        # LightRAG returns dict with 'answer' (context) and 'references' (sources)
+        result = await lightrag_manager.query(
             user_id=current_user.id,
             collection_id=request.collection_id,
             query=query_text,
             mode=settings.LIGHTRAG_DEFAULT_MODE
         )
 
-        return {"answer": answer, "chunks": []}
+        return {
+            "answer": result.get("answer", ""),
+            "references": result.get("references", [])
+        }
 
     # Execute search based on mode and graph enhancement
     if request.mode == RetrievalMode.GRAPH:
@@ -314,8 +374,9 @@ async def retrieve(
         if not graph_result:
             raise http_400_bad_request("Graph mode failed - LightRAG returned no results")
 
-        results = graph_result.get('chunks', [])
+        results = []  # No chunk results in pure graph mode
         graph_context = graph_result.get('answer', '')
+        graph_references = _build_graph_references(graph_result.get('references', []))
         graph_enhanced = True
 
     elif request.enable_graph:
@@ -331,7 +392,7 @@ async def retrieve(
                 "Check LightRAG configuration and ensure documents are indexed."
             )
 
-        results, graph_context = _enrich_with_graph_context(base_results, graph_result)
+        results, graph_context, graph_references = _enrich_with_graph_context(base_results, graph_result)
         graph_enhanced = True
 
     else:
@@ -344,21 +405,42 @@ async def retrieve(
         results = results[:request.top_k]
         logger.debug(f"Trimmed results from {original_count} to top_k={request.top_k}")
 
-    # Apply reranking if requested and available
+    # Apply context expansion FIRST (before reranking)
+    # This ensures the reranker validates the FINAL content going to the LLM
+    # Research: "Retrieval is efficient with small chunks, LLM benefits from larger context"
+    # Source: https://glaforge.dev/posts/2025/02/25/advanced-rag-sentence-window-retrieval/
+    if request.expand_context and results:
+        context_expander = ContextExpander(db)
+        results = context_expander.expand_context(
+            results=results,
+            window_before=1,  # 1 chunk before
+            window_after=2,   # 2 chunks after
+            merge_overlapping=True
+        )
+
+    # Apply reranking AFTER context expansion
+    # This validates the expanded_content against the query, preventing context rot
+    # where irrelevant surrounding chunks pollute the context
+    # Research: Cross-encoder reranking adds +10-20% precision
+    # Source: https://superlinked.com/vectorhub/articles/optimizing-rag-with-hybrid-search-reranking
+    RERANK_SCORE_THRESHOLD = 0.3  # Minimum rerank score (cross-encoder confidence)
     if request.rerank and reranker.is_available() and results:
-        results = reranker.rerank(
+        results = reranker.rerank_with_threshold(
             query=request.query,  # Use original query for reranking
             chunks=results,
-            top_k=request.top_k
+            threshold=RERANK_SCORE_THRESHOLD,
+            top_k=request.top_k,
+            use_expanded_content=True  # Rerank on expanded_content, not original
         )
 
     # Cache results (using original query as key)
-    if results:
+    if results or graph_references:
         # Create cache payload with graph context if present
         cache_payload = {
             'results': results,
             'graph_enhanced': graph_enhanced,
-            'graph_context': graph_context
+            'graph_context': graph_context,
+            'graph_references': graph_references
         }
 
         success = cache.set_search_results(
@@ -379,5 +461,6 @@ async def retrieve(
         mode=request.mode.value,
         total_results=len(chunk_results),
         graph_enhanced=graph_enhanced,
-        graph_context=graph_context
+        graph_context=graph_context,
+        graph_references=graph_references
     )

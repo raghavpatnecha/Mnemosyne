@@ -1,15 +1,49 @@
 """
 DocumentChunk Model - Text chunks with embeddings for vector search
+
+Search Architecture:
+- embedding: Vector column for semantic search (pgvector cosine similarity)
+- search_content: Normalized text for full-text search (slashes/hyphens → spaces)
+- search_vector: Pre-computed tsvector for fast indexed FTS
+- GIN index on search_vector for O(log n) lookups
+- pg_trgm index on search_content for fuzzy/partial matching
 """
 
-from sqlalchemy import Column, String, Text, Integer, ForeignKey, JSON, DateTime
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Column, String, Text, Integer, ForeignKey, JSON, DateTime, Index
+from sqlalchemy.dialects.postgresql import UUID, TSVECTOR
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
+from sqlalchemy.ext.mutable import MutableDict
 from pgvector.sqlalchemy import Vector
 import uuid
+import re
 
 from backend.database import Base
+
+
+def normalize_for_search(text: str) -> str:
+    """
+    Normalize text for full-text search indexing.
+
+    Transforms compound terms so each component is searchable:
+    - "Myndro/Moodahead" → "Myndro Moodahead"
+    - "React-Native" → "React Native"
+    - "AWS_Lambda" → "AWS Lambda"
+
+    This is applied at INDEX TIME, not query time, following
+    the standard RAG practice of normalizing during ingestion.
+
+    Args:
+        text: Raw text content
+
+    Returns:
+        Normalized text suitable for tsvector indexing
+    """
+    # Replace compound separators with spaces
+    normalized = re.sub(r'[/\-_]', ' ', text)
+    # Collapse multiple spaces
+    normalized = re.sub(r'\s+', ' ', normalized)
+    return normalized.strip()
 
 
 class DocumentChunk(Base):
@@ -61,14 +95,30 @@ class DocumentChunk(Base):
     content = Column(Text, nullable=False)
     chunk_index = Column(Integer, nullable=False)
 
+    # Search-optimized content (normalized at index time)
+    # Compound terms like "Myndro/Moodahead" become "Myndro Moodahead"
+    # This column is used for full-text search instead of raw content
+    search_content = Column(Text, nullable=True)
+
+    # Pre-computed tsvector for fast full-text search
+    # Generated from search_content, indexed with GIN
+    search_vector = Column(TSVECTOR, nullable=True)
+
     # Vector embedding (1536 dimensions for text-embedding-3-large)
     embedding = Column(Vector(1536), nullable=False)
 
-    # Metadata
-    metadata_ = Column("metadata", JSON, default=dict)  # metadata is reserved by SQLAlchemy
-    chunk_metadata = Column(JSON, default=dict)
+    # Metadata (MutableDict tracks in-place JSON changes)
+    metadata_ = Column("metadata", MutableDict.as_mutable(JSON), default=dict)  # metadata is reserved by SQLAlchemy
+    chunk_metadata = Column(MutableDict.as_mutable(JSON), default=dict)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    # Indexes for full-text search (created via migration)
+    # GIN index on search_vector for O(log n) FTS lookups
+    # pg_trgm GIN index on search_content for fuzzy matching
+    __table_args__ = (
+        Index('idx_chunk_search_vector', 'search_vector', postgresql_using='gin'),
+    )
 
     # Relationships
     document = relationship("Document", back_populates="chunks")

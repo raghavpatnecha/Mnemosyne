@@ -3,6 +3,14 @@ Mnemosyne API - FastAPI application entry point
 Weeks 1-5: Complete RAG-as-a-Service platform with advanced features
 """
 
+import logging
+
+# Configure logging to show INFO level
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(levelname)s:%(name)s:%(message)s"
+)
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from backend.config import settings
@@ -16,7 +24,14 @@ app = FastAPI(
     version=settings.APP_VERSION,
     description="Open-source RAG-as-a-Service platform",
     docs_url="/docs",
-    redoc_url="/redoc"
+    redoc_url="/redoc",
+    openapi_tags=[
+        {"name": "authentication", "description": "User registration and API key management"},
+        {"name": "collections", "description": "Collection management"},
+        {"name": "documents", "description": "Document upload and management"},
+        {"name": "retrievals", "description": "Search and retrieval"},
+        {"name": "chat", "description": "Conversational AI"}
+    ]
 )
 
 # CORS middleware
@@ -72,6 +87,10 @@ app.include_router(collections.router, prefix="/api/v1")
 app.include_router(documents.router, prefix="/api/v1")
 app.include_router(retrievals.router, prefix="/api/v1")
 app.include_router(chat.router, prefix="/api/v1")
+
+
+# Security is now handled by HTTPBearer in deps.py
+# FastAPI will automatically generate the OpenAPI schema with security
 
 
 if __name__ == "__main__":

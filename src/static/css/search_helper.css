@@ -118,12 +118,14 @@ display:none;
 
 .codrops-header__title {
 	margin: 0;
-    padding: 0 0 0 9.75em;
+    padding: 0 1em;
     font-family: var(--font-family-circular_spotify_text-bold);
     font-size: var(--font-size-l);
     font-style: normal;
     font-weight: 700;
     color: #2e2c35;
+    text-align: center;
+    flex: 1;
 }
 
 .codrops-header__side,

@@ -33,7 +33,7 @@ class TestRerankerService:
         assert not service.is_available()
 
     @patch('backend.services.reranker_service.settings')
-    @patch('backend.services.reranker_service.Reranker')
+    @patch('rerankers.Reranker')  # Patch where it's imported, not where it's used
     def test_init_flashrank_provider(self, mock_reranker_class, mock_settings):
         """Test initialization with Flashrank provider"""
         mock_settings.RERANK_ENABLED = True
@@ -49,12 +49,13 @@ class TestRerankerService:
         assert service.reranker is not None
         mock_reranker_class.assert_called_once_with(
             model_name='ms-marco-MultiBERT-L-12',
+            verbose=0,
             model_type='flashrank',
             cache_dir='./models'
         )
 
     @patch('backend.services.reranker_service.settings')
-    @patch('backend.services.reranker_service.Reranker')
+    @patch('rerankers.Reranker')  # Patch where it's imported
     def test_init_cohere_provider(self, mock_reranker_class, mock_settings):
         """Test initialization with Cohere provider"""
         mock_settings.RERANK_ENABLED = True
@@ -70,7 +71,8 @@ class TestRerankerService:
         assert service.reranker is not None
         mock_reranker_class.assert_called_once_with(
             model_name='rerank-english-v2.0',
-            model_type='api',
+            verbose=0,
+            api_provider='cohere',
             api_key='test_api_key'
         )
 
@@ -84,7 +86,7 @@ class TestRerankerService:
 
         assert service.reranker is None
 
-    @patch('backend.services.reranker_service.Document')
+    @patch('rerankers.Document')
     def test_rerank_basic(self, mock_document_class):
         """Test basic reranking functionality"""
         service = RerankerService()
@@ -150,7 +152,7 @@ class TestRerankerService:
 
         assert results == []
 
-    @patch('backend.services.reranker_service.Document')
+    @patch('rerankers.Document')
     def test_rerank_with_top_k(self, mock_document_class):
         """Test reranking with top_k parameter"""
         service = RerankerService()
@@ -192,7 +194,7 @@ class TestRerankerService:
 
         assert len(results) == 3
 
-    @patch('backend.services.reranker_service.Document')
+    @patch('rerankers.Document')
     def test_rerank_with_threshold(self, mock_document_class):
         """Test threshold-based reranking"""
         service = RerankerService()
@@ -264,7 +266,7 @@ class TestRerankerService:
         with pytest.raises(ValueError, match="same length"):
             service.batch_rerank(queries, chunks_list)
 
-    @patch('backend.services.reranker_service.Document')
+    @patch('rerankers.Document')
     def test_get_rerank_scores(self, mock_document_class):
         """Test extracting rerank scores"""
         service = RerankerService()

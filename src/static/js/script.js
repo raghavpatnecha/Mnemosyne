@@ -1,7 +1,9 @@
 // Constants and utility functions
 const CONSTANTS = {
     APP_ID: "", // paste your opengraph.io key here optional
-    API_ID: window.location.origin + "/mnemosyne/api/v1/search"
+    API_ID: window.location.origin + "/mnemosyne/api/v1/search",
+    CACHE_PREFIX: "mnemosyne_search_",
+    CACHE_EXPIRY: 30 * 60 * 1000 // 30 minutes
 };
 const encodeQuery = query => query.replace(/\s+/g, '-').toLowerCase();
 const generateUniqueId = () => Math.random().toString(36).substring(2, 15);
@@ -9,6 +11,54 @@ const isValidUrl = url => /^(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w \.
 const mainContent = document.getElementById('main-content');
 const sidebar = document.getElementById('sidebar');
 const closeBtn = document.getElementById('btn-search-close');
+
+// Search State Cache
+const SearchCache = {
+    save: function(searchId, data) {
+        const cacheEntry = {
+            timestamp: Date.now(),
+            data: data
+        };
+        try {
+            sessionStorage.setItem(CONSTANTS.CACHE_PREFIX + searchId, JSON.stringify(cacheEntry));
+        } catch (e) {
+            console.warn('Failed to cache search result:', e);
+        }
+    },
+
+    get: function(searchId) {
+        try {
+            const cached = sessionStorage.getItem(CONSTANTS.CACHE_PREFIX + searchId);
+            if (!cached) return null;
+
+            const entry = JSON.parse(cached);
+            // Check if cache is expired
+            if (Date.now() - entry.timestamp > CONSTANTS.CACHE_EXPIRY) {
+                sessionStorage.removeItem(CONSTANTS.CACHE_PREFIX + searchId);
+                return null;
+            }
+            return entry.data;
+        } catch (e) {
+            return null;
+        }
+    },
+
+    clear: function(searchId) {
+        sessionStorage.removeItem(CONSTANTS.CACHE_PREFIX + searchId);
+    }
+};
+
+// Current search state
+let currentSearchId = null;
+let currentSearchState = {
+    query: '',
+    answer: '',
+    sources: [],
+    images: [],
+    media: [],
+    followUps: [],
+    metadata: {}
+};
 
 // Main search function
 function performSearch(query, isFollowUp = false) {
@@ -24,12 +74,116 @@ function performSearch(query, isFollowUp = false) {
 
     const encodedQuery = encodeQuery(query);
     const uniqueId = generateUniqueId();
-    const searchUrl = `${CONSTANTS.API_ID}/${encodedQuery}-${uniqueId}`;
-    if (!isFollowUp && window.location.protocol !== 'file:') {
-        window.history.pushState({}, '', searchUrl);
+    const searchId = `${encodedQuery}-${uniqueId}`;
+
+    // Store current search ID for caching
+    if (!isFollowUp) {
+        currentSearchId = searchId;
+        currentSearchState = {
+            query: query,
+            answer: '',
+            sources: [],
+            images: [],
+            media: [],
+            followUps: [],
+            metadata: {}
+        };
     }
-    streamResults(searchUrl, isFollowUp);
+
+    // Build API URL for fetching results
+    let apiUrl = `${CONSTANTS.API_ID}/${searchId}`;
+
+    // Add collection_id as query parameter if available
+    const collectionId = window.SDKState?.currentCollection;
+    if (collectionId) {
+        apiUrl += `?collection_id=${collectionId}`;
+    }
+
+    // Update browser URL (use /search/ path, not the API path)
+    if (!isFollowUp && window.location.protocol !== 'file:') {
+        let browserUrl = `/search/${searchId}`;
+        if (collectionId) {
+            browserUrl += `?collection_id=${collectionId}`;
+        }
+        window.history.pushState({ query: query, searchId: searchId, collectionId: collectionId }, '', browserUrl);
+    }
+
+    streamResults(apiUrl, isFollowUp);
 }
+
+// Handle page load - check if we're on a search URL and restore from cache or re-fetch
+function handleSearchPageLoad() {
+    const path = window.location.pathname;
+    if (path.startsWith('/search/')) {
+        const searchId = path.replace('/search/', '');
+
+        // Get collection_id from URL params if present
+        const urlParams = new URLSearchParams(window.location.search);
+        const collectionId = urlParams.get('collection_id');
+        if (collectionId && window.SDKState) {
+            window.SDKState.currentCollection = collectionId;
+        }
+
+        // Try to restore from cache first
+        const cachedState = SearchCache.get(searchId);
+        if (cachedState) {
+            console.log('Restoring from cache:', searchId);
+            restoreSearchState(cachedState, collectionId);
+            return;
+        }
+
+        // No cache - decode query and re-execute search
+        const parts = searchId.split('-');
+        // Remove the last part (unique ID) if it looks like one
+        if (parts.length > 1 && parts[parts.length - 1].length >= 10) {
+            parts.pop();
+        }
+        const decodedQuery = parts.join(' ');
+
+        if (decodedQuery) {
+            console.log('No cache found, re-executing search:', decodedQuery);
+            performSearch(decodedQuery, false);
+        }
+    }
+}
+
+// Restore search state from cache
+function restoreSearchState(state, collectionId) {
+    // Set up UI
+    handleInitialSearch(state.query);
+    closeSearch();
+    updateUIPostSearch(false);
+
+    // Restore answer
+    const answerContainer = document.getElementById('answer-container');
+    if (answerContainer && state.answer) {
+        answerContainer.innerHTML = parseMarkdown(state.answer);
+
+        // Add completion elements
+        const completionDiv = document.createElement('div');
+        completionDiv.setAttribute('data-orientation', 'horizontal');
+        completionDiv.setAttribute('role', 'none');
+        completionDiv.classList.add('answer-complete');
+
+        const warningDiv = document.createElement('div');
+        warningDiv.className = 'warning-text';
+        warningDiv.textContent = 'Mnemosyne can make mistakes. Verify response and sources.';
+
+        answerContainer.appendChild(completionDiv);
+        answerContainer.appendChild(warningDiv);
+    }
+
+    // Restore sources, images, follow-ups via displayResults
+    if (state.metadata) {
+        displayResults(state.metadata, false);
+    }
+
+    // Create follow-up input
+    manageFollowUpInput();
+}
+
+// Run on page load
+document.addEventListener('DOMContentLoaded', handleSearchPageLoad);
 
 //For Initial Search
 function handleInitialSearch(query) {
@@ -365,8 +519,18 @@ function streamResults(query, isFollowUp) {
                             const content = line.slice(6);
                             try {
                                 const data = JSON.parse(content);
-                                displayResults(data, isFollowUp);
+                                if (data.type === 'delta' && data.content) {
+                                    // Delta text chunks - use processText which handles streaming display
+                                    processText(data.content);
+                                } else if (data.type) {
+                                    // Other typed SSE events
+                                    handleTypedEvent(data, isFollowUp);
+                                } else {
+                                    // Legacy format
+                                    displayResults(data, isFollowUp);
+                                }
                             } catch (error) {
+                                // Plain text content - process as answer text
                                 processText(content);
                             }
                         }
@@ -384,38 +548,51 @@ function streamResults(query, isFollowUp) {
         });
 
     function processText(text) {
+        // Filter out [DONE] marker and empty content
+        if (!text || text.trim() === '[DONE]' || text.trim() === '') {
+            return;
+        }
+
         if (!hasStartedStreaming) {
             currentAnswerContainer.innerHTML = '';
             hasStartedStreaming = true;
         }
 
-        const lines = text.split('\n');
-        lines.forEach(line => {
-            if (isFirstLine) {
-                const trimmedLine = line.trim();
-                if (trimmedLine.startsWith('##') ||
-                    (trimmedLine.startsWith('**') && trimmedLine.endsWith('**'))) {
-                    let processedText;
-                    if (trimmedLine.startsWith('##')) {
-                        processedText = trimmedLine.slice(trimmedLine.lastIndexOf('#') + 1).trim();
-                    } else {
-                        processedText = trimmedLine.slice(2, -2).trim();
-                    }
-                    customStyledFirstLine = renderCustomBoldText(processedText);
-                    fullAnswer += '%%%CUSTOM_STYLED_FIRST_LINE%%%\n';
+        // During streaming, tokens come one at a time
+        // Don't split by newlines - just accumulate the raw text
+        // We'll handle newlines properly in the final markdown parse
+
+        if (isFirstLine && text.trim()) {
+            const trimmedText = text.trim();
+            // Check if first meaningful content is a header pattern
+            if (trimmedText.startsWith('##') ||
+                (trimmedText.startsWith('**') && trimmedText.endsWith('**') && trimmedText.length > 4)) {
+                let processedText;
+                if (trimmedText.startsWith('##')) {
+                    processedText = trimmedText.slice(trimmedText.lastIndexOf('#') + 1).trim();
                 } else {
-                    // Normal text - process it like any other line
-                    fullAnswer += escapeHtml(line) + '\n';
+                    processedText = trimmedText.slice(2, -2).trim();
                 }
-                isFirstLine = false;
-            } else if (line.trim().startsWith('```')) {
-                handleCodeBlock(line);
-            } else if (inCodeBlock) {
-                currentCodeBlock += line + '\n';
-            } else {
-                fullAnswer += escapeHtml(line) + '\n';
+                if (processedText) {
+                    customStyledFirstLine = renderCustomBoldText(processedText);
+                    fullAnswer += '%%%CUSTOM_STYLED_FIRST_LINE%%%';
+                    isFirstLine = false;
+                    updateDisplay();
+                    return;
+                }
             }
-        });
+            isFirstLine = false;
+        }
+
+        // Handle code blocks
+        if (text.trim().startsWith('```')) {
+            handleCodeBlock(text);
+        } else if (inCodeBlock) {
+            currentCodeBlock += text;
+        } else {
+            // Simply accumulate text as-is
+            fullAnswer += text;
+        }
 
         updateDisplay();
     }
@@ -433,20 +610,35 @@ function streamResults(query, isFollowUp) {
         }
     }
 
-    function updateDisplay() {
+    function updateDisplay(isFinal = false) {
         let displayContent = fullAnswer;
         if (inCodeBlock) {
             displayContent += escapeHtml(currentCodeBlock);
         }
 
-        displayContent = displayContent.replace(/<pre><code class="hljs language-(\w+)">([\s\S]*?)<\/code><\/pre>/g, (match, lang, code) => {
-            const highlightedCode = hljs.highlight(code.trim(), { language: lang }).value;
-            return `<pre><code class="hljs language-${lang}">${highlightedCode}</code></pre>`;
-        });
+        // Clean up empty brackets [] and [DONE] markers
+        displayContent = displayContent.replace(/\[\]/g, '');
+        displayContent = displayContent.replace(/\[DONE\]/g, '');
 
-        let parsedContent = parseMarkdown(displayContent);
+        let parsedContent;
+        if (isFinal) {
+            // Final render: apply full markdown parsing
+            displayContent = displayContent.replace(/<pre><code class="hljs language-(\w+)">([\s\S]*?)<\/code><\/pre>/g, (match, lang, code) => {
+                const highlightedCode = hljs.highlight(code.trim(), { language: lang }).value;
+                return `<pre><code class="hljs language-${lang}">${highlightedCode}</code></pre>`;
+            });
+            parsedContent = parseMarkdown(displayContent);
+        } else {
+            // During streaming: convert newlines to <br> for proper line breaks
+            let escaped = escapeHtml(displayContent);
+            // Convert double newlines to paragraph breaks, single newlines to <br>
+            escaped = escaped.replace(/\n\n/g, '</p><p>');
+            escaped = escaped.replace(/\n/g, '<br>');
+            parsedContent = '<p>' + escaped + '</p>';
+        }
+
         parsedContent = parsedContent.replace('%%%CUSTOM_STYLED_FIRST_LINE%%%', customStyledFirstLine);
-
+        parsedContent = parsedContent.replace(/&amp;#37;&amp;#37;&amp;#37;CUSTOM_STYLED_FIRST_LINE&amp;#37;&amp;#37;&amp;#37;/g, customStyledFirstLine);
         currentAnswerContainer.innerHTML = parsedContent;
 
         mainContent.scrollTo({
@@ -464,7 +656,7 @@ function streamResults(query, isFollowUp) {
             fullAnswer += `${escapeHtml(currentCodeBlock)}</code></pre>\n`;
             inCodeBlock = false;
         }
-        updateDisplay();
+        updateDisplay(true);  // Final render with full markdown parsing
 
         const completionDiv = document.createElement('div');
         completionDiv.setAttribute('data-orientation', 'horizontal');
@@ -482,6 +674,88 @@ function streamResults(query, isFollowUp) {
             top: mainContent.scrollHeight,
             behavior: 'smooth'
         });
+
+        // Save to cache for page reload
+        if (currentSearchId && !isFollowUp) {
+            // Clean the answer before caching
+            let cleanAnswer = fullAnswer.replace(/\[\]/g, '').replace(/\[DONE\]/g, '');
+            currentSearchState.answer = cleanAnswer;
+            SearchCache.save(currentSearchId, currentSearchState);
+            console.log('Search cached:', currentSearchId);
+        }
+    }
+}
+
+// Handle typed SSE events from backend
+function handleTypedEvent(data, isFollowUp) {
+    const currentQuerySection = document.querySelector('.query-section:last-child') || document;
+
+    switch (data.type) {
+        case 'sources':
+            if (data.sources && data.sources.length > 0) {
+                displaySources(data.sources, currentQuerySection, isFollowUp);
+                if (!isFollowUp && currentSearchState) {
+                    currentSearchState.sources = data.sources;
+                }
+            }
+            break;
+
+        case 'media':
+            // Map media items to images display format
+            if (data.media && data.media.length > 0) {
+                const images = data.media.map(m => ({
+                    url: m.url,
+                    description: m.description || `${m.type} from ${m.source_document_title || 'document'}`
+                }));
+                displayImages(images, currentQuerySection);
+                if (!isFollowUp && currentSearchState) {
+                    currentSearchState.media = data.media;
+                }
+            }
+            break;
+
+        case 'follow_up':
+            // Map follow_up_questions to string array for existing display
+            if (data.follow_up_questions && data.follow_up_questions.length > 0) {
+                const questions = data.follow_up_questions.map(q => q.question);
+                displayFollowUp(questions, currentQuerySection);
+                if (!isFollowUp && currentSearchState) {
+                    currentSearchState.followUps = data.follow_up_questions;
+                }
+            }
+            break;
+
+        case 'done':
+            if (!isFollowUp && currentSearchState && data.metadata) {
+                currentSearchState.metadata = { ...currentSearchState.metadata, ...data.metadata };
+            }
+            if (data.metadata && data.metadata.confidence !== undefined) {
+                displayConfidenceScore(data.metadata.confidence, currentQuerySection);
+            }
+            break;
+
+        case 'error':
+            if (data.error) {
+                displayErrorMessage(data.error);
+            }
+            break;
+
+        case 'reasoning_step':
+            // Deep reasoning progress
+            console.log(`Reasoning step ${data.step}: ${data.description}`);
+            break;
+
+        case 'sub_query':
+            // Sub-query during deep reasoning
+            console.log(`Sub-query: ${data.query}`);
+            break;
+
+        case 'usage':
+            // Token usage stats - informational
+            break;
+
+        default:
+            console.log('Unknown SSE event:', data.type, data);
     }
 }
 
@@ -509,33 +783,14 @@ function escapeHtml(unsafe) {
 
 
 function setupMarked() {
-marked.use({
-    renderer: {
-        heading(text) {
-            const tag = `h${text.depth}`;
-            const className = `custom-heading-${text.depth}`;
-            text = ensureString(text);
-            return `<${tag} class="${className}">${text}</${tag}>`;
-        },
-        paragraph(text) {
-            text = ensureString(text);
-            return `<p class="custom-paragraph">${marked.parseInline(text)}</p>`;
-        },
-        blockquote(quote) {
-            quote = ensureString(quote);
-            return `<blockquote class="custom-blockquote">${marked.parseInline(quote)}</blockquote>`;
-        },
-        code(code, language) {
-            code = ensureString(code);
-            return `<div class="code-preview">
-                        <pre><code class="hljs language-${language}">${code}</code></pre>
-                    </div>`;
-        },
-        link(href, title, text) {
-            return marked.Renderer.prototype.link.call(this, href, title, text);
-        }
-    }
-});
+    // Configure marked with GitHub Flavored Markdown support
+    // Use minimal customization to ensure inline markdown (bold, italic, etc.) works correctly
+    marked.setOptions({
+        gfm: true,
+        breaks: true,
+        headerIds: false,
+        mangle: false
+    });
 }
 
 function ensureString(content) {
@@ -555,19 +810,72 @@ function ensureString(content) {
 
 function parseMarkdown(text) {
     try {
+        // Preprocess: Add line breaks before section headers for proper markdown parsing
+        // This handles cases where the LLM doesn't send newlines before headers
+        let processedText = text
+            // Convert ".." or ". ." separators to proper line breaks (common LLM output pattern)
+            .replace(/\s*\.\.\s*/g, '\n\n')
+            // Add line breaks before bold section headers like **Be a Secure Base:**
+            .replace(/([.!?:)\]])\s*(\*\*[A-Z][^*]+\*\*:?)/g, '$1\n\n$2')
+            // Add line breaks before underscored section headers like _Be a Secure Base_:
+            .replace(/([.!?:)\]])\s*(_[A-Z][^_]+_:)/g, '$1\n\n$2')
+            // Add line breaks before plain section headers
+            .replace(/([.!?\]])\s*((?:Detailed Analysis|Gaps|Key Takeaways|Summary|Conclusion|Overview|Background|Recommendations|Next Steps|References|Notes|Introduction|Methods|Results|Discussion):)/g, '$1\n\n$2')
+            // Ensure numbered lists get proper line breaks
+            .replace(/([.!?])\s*(\d+\.\s+\*\*)/g, '$1\n\n$2')
+            // Ensure bullet points get proper line breaks
+            .replace(/([.!?])\s*([•\-\*]\s+)/g, '$1\n\n$2')
+            // Normalize multiple newlines to double newlines
+            .replace(/\n{3,}/g, '\n\n')
+            // Trim leading/trailing whitespace
+            .trim();
+
         if (typeof marked !== 'undefined' && typeof marked.parse === 'function') {
-            return marked.parse(text, {
-                gfm: true, // Enable GitHub Flavored Markdown
-                breaks: true // Allow line breaks in paragraphs
+            return marked.parse(processedText, {
+                gfm: true,
+                breaks: true
             });
         } else {
-            console.warn('Marked library not loaded correctly. Displaying raw text.');
-            return text.replace(/\n/g, '<br>');
+            console.warn('Marked library not loaded. Using fallback markdown parser.');
+            return fallbackMarkdownParse(processedText);
         }
     } catch (error) {
         console.error('Error parsing markdown:', error);
-        return text.replace(/\n/g, '<br>');
+        return fallbackMarkdownParse(text);
     }
+}
+
+function fallbackMarkdownParse(text) {
+    // Simple fallback markdown parser for basic formatting
+    // First apply the same preprocessing as parseMarkdown
+    let processedText = text
+        // Convert ".." separators to line breaks
+        .replace(/\s*\.\.\s*/g, '\n\n')
+        // Add line breaks before bold section headers
+        .replace(/([.!?:)\]])\s*(\*\*[A-Z][^*]+\*\*:?)/g, '$1\n\n$2')
+        // Normalize multiple newlines
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
+
+    return processedText
+        // Bold text: **text** or __text__
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        .replace(/__(.+?)__/g, '<strong>$1</strong>')
+        // Italic text: *text* or _text_
+        .replace(/\*(.+?)\*/g, '<em>$1</em>')
+        .replace(/_(.+?)_/g, '<em>$1</em>')
+        // Inline code: `code`
+        .replace(/`([^`]+)`/g, '<code>$1</code>')
+        // Headers: ## Header
+        .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+        .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+        .replace(/^# (.+)$/gm, '<h1>$1</h1>')
+        // Paragraphs: double newlines become paragraphs
+        .replace(/\n\n/g, '</p><p>')
+        // Single line breaks
+        .replace(/\n/g, '<br>')
+        // Wrap in paragraph tags
+        .replace(/^(.+)$/, '<p>$1</p>');
 }
 
 
@@ -584,6 +892,14 @@ async function displayResults(data, isFollowUp) {
     displayFollowUp(data.follow_up, currentQuerySection);
     displaySources(data.sources, currentQuerySection, isFollowUp);
     displayConfidenceScore(data.confidence_score, currentQuerySection);
+
+    // Store metadata for caching
+    if (!isFollowUp && currentSearchState) {
+        currentSearchState.metadata = data;
+        currentSearchState.images = data.images || [];
+        currentSearchState.sources = data.sources || [];
+        currentSearchState.followUps = data.follow_up || [];
+    }
 }
 
 function displayImages(images, container) {
@@ -640,15 +956,69 @@ function displaySources(sources, container, isFollowUp) {
         return;
     }
 
-    const sourcePromises = sources.map(fetchSourcePreview);
-
-    Promise.all(sourcePromises).then(sourceElements => {
-        if (isFollowUp) {
-            sourcesContainer.innerHTML += sourceElements.join('');
+    // Handle multiple source formats:
+    // 1. SDK chat sources: document_id, title, filename, chunk_index, score
+    // 2. Metadata sources: title, url, filename, relevance, snippet
+    // 3. Legacy sources: url (valid http), title, content
+    const sourceElements = sources.map(source => {
+        if (source.document_id) {
+            // SDK chat source format
+            return createSDKSourceHTML(source);
+        } else if (source.relevance !== undefined || source.snippet) {
+            // Metadata source format (from _extract_rich_metadata)
+            return Promise.resolve(createMetadataSourceHTML(source));
+        } else if (source.url && isValidUrl(source.url)) {
+            // Legacy format with valid external URL
+            return fetchSourcePreview(source);
         } else {
-            sourcesContainer.innerHTML = sourceElements.join('');
+            return Promise.resolve(createFallbackSourceHTML(source));
         }
     });
+
+    Promise.all(sourceElements).then(elements => {
+        if (isFollowUp) {
+            sourcesContainer.innerHTML += elements.join('');
+        } else {
+            sourcesContainer.innerHTML = elements.join('');
+        }
+    });
+}
+
+function createSDKSourceHTML(source) {
+    const scorePercent = source.score ? Math.round(source.score * 100) : 0;
+
+    return `
+        <div class="source">
+            <div class="source-preview">
+                <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23666' stroke-width='2'%3E%3Cpath d='M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z'%3E%3C/path%3E%3Cpolyline points='14 2 14 8 20 8'%3E%3C/polyline%3E%3C/svg%3E" alt="Document" class="favicon">
+                <div class="preview-content">
+                    <h3>${source.title || source.filename || 'Document'}</h3>
+                    <p class="source-description">${source.filename || ''}</p>
+                    <p class="site-name">Relevance: ${scorePercent}%${source.chunk_index !== undefined ? ` | Chunk #${source.chunk_index + 1}` : ''}</p>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function createMetadataSourceHTML(source) {
+    // Handle metadata sources from _extract_rich_metadata
+    // Format: title, url, filename, relevance, snippet
+    const relevancePercent = source.relevance ? Math.round(source.relevance * 100) : 0;
+    const snippetText = source.snippet ? truncateText(source.snippet, 150) : '';
+
+    return `
+        <div class="source">
+            <div class="source-preview">
+                <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23666' stroke-width='2'%3E%3Cpath d='M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z'%3E%3C/path%3E%3Cpolyline points='14 2 14 8 20 8'%3E%3C/polyline%3E%3C/svg%3E" alt="Document" class="favicon">
+                <div class="preview-content">
+                    <h3>${source.title || source.filename || 'Document'}</h3>
+                    ${snippetText ? `<p class="source-description">${snippetText}</p>` : ''}
+                    <p class="site-name">Relevance: ${relevancePercent}%</p>
+                </div>
+            </div>
+        </div>
+    `;
 }
 
 async function fetchSourcePreview(source) {
@@ -690,11 +1060,19 @@ function createSourceHTML(hybridGraph) {
 }
 
 function createFallbackSourceHTML(source) {
+    const description = source.content || source.snippet || source.description || '';
+    const url = source.url || '';
+
     return `
         <div class="source">
-            <h3>${source.title || 'No Title'}</h3>
-            <a href="${source.url}" target="_blank" class="source-link">${source.url}</a>
-            <p class="source-description">${source.content}</p>
+            <div class="source-preview">
+                <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23666' stroke-width='2'%3E%3Cpath d='M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z'%3E%3C/path%3E%3Cpolyline points='14 2 14 8 20 8'%3E%3C/polyline%3E%3C/svg%3E" alt="Document" class="favicon">
+                <div class="preview-content">
+                    <h3>${source.title || source.filename || 'Document'}</h3>
+                    ${url ? `<a href="${url}" target="_blank" class="source-link">${truncateText(url, 50)}</a>` : ''}
+                    ${description ? `<p class="source-description">${truncateText(description, 150)}</p>` : ''}
+                </div>
+            </div>
         </div>
     `;
 }
@@ -752,16 +1130,6 @@ function init() {
 
 // Call the init function when the script loads
 init();
-
-
-// Check if we're loading a search result page
-const path = window.location.pathname;
-const match = path.match(/^\/search\/(.+)-[a-z0-9]+$/);
-if (match) {
-    const encodedQuery = match[1];
-    document.getElementById('search-input').value = encodedQuery.replace(/-/g, ' ');
-    streamResults(`/search/${encodedQuery}`);
-}
 
 
 /* ------------------------ Search button js (Please Ignore) ----------------------- */

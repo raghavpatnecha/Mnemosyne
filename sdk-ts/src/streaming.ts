@@ -2,23 +2,58 @@
  * Server-Sent Events (SSE) streaming utilities
  */
 
+import type { SourceReference, MediaItem, FollowUpQuestion, UsageStats, ChatMetadata } from './types/chat.js';
+
+/**
+ * SSE event type union
+ */
+export type SSEEventType =
+  | 'delta'
+  | 'sources'
+  | 'media'
+  | 'follow_up'
+  | 'usage'
+  | 'done'
+  | 'error'
+  | 'reasoning_step'
+  | 'sub_query';
+
 /**
  * SSE event types from the backend
  */
 export interface SSEEvent {
-  type: 'delta' | 'sources' | 'done' | 'error';
+  type: SSEEventType;
+  /** Text content for delta events */
   delta?: string;
-  sources?: Array<Record<string, unknown>>;
+  /** Retrieved sources for sources events */
+  sources?: SourceReference[];
+  /** Media items (images, tables, figures) for media events */
+  media?: MediaItem[];
+  /** Suggested follow-up questions for follow_up events */
+  follow_up_questions?: FollowUpQuestion[];
+  /** Token usage statistics for usage events */
+  usage?: UsageStats;
+  /** Response metadata for done events */
+  metadata?: ChatMetadata;
+  /** Stream completion flag for done events */
   done?: boolean;
+  /** Session ID for done events */
   session_id?: string;
+  /** Error message for error events */
   error?: string;
+  /** Reasoning step number (1-3) for reasoning_step events in deep mode */
+  step?: number;
+  /** Reasoning step description for reasoning_step events */
+  description?: string;
+  /** Sub-query text for sub_query events in deep mode */
+  query?: string;
 }
 
 /**
  * Parse Server-Sent Events from a streaming response.
  *
  * Automatically parses JSON events and yields structured objects.
- * Event types: delta, sources, done, error
+ * Event types: delta, sources, media, follow_up, usage, done, error, reasoning_step, sub_query
  *
  * @param response - Fetch Response object with streaming body
  * @yields Parsed SSE event objects
@@ -27,12 +62,22 @@ export interface SSEEvent {
  * ```typescript
  * const response = await fetch('/chat', { ... });
  * for await (const event of parseSSEStream(response)) {
- *   if (event.type === 'delta') {
- *     console.log(event.delta);
- *   } else if (event.type === 'sources') {
- *     console.log('Sources:', event.sources);
- *   } else if (event.type === 'done') {
- *     console.log('Session ID:', event.session_id);
+ *   switch (event.type) {
+ *     case 'delta':
+ *       process.stdout.write(event.delta);
+ *       break;
+ *     case 'sources':
+ *       console.log('Sources:', event.sources);
+ *       break;
+ *     case 'reasoning_step':
+ *       console.log(`Step ${event.step}: ${event.description}`);
+ *       break;
+ *     case 'sub_query':
+ *       console.log(`  Searching: ${event.query}`);
+ *       break;
+ *     case 'done':
+ *       console.log('Session ID:', event.session_id);
+ *       break;
  *   }
  * }
  * ```

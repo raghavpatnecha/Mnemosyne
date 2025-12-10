@@ -25,6 +25,7 @@ class RetrievalsResource:
         mode: RetrievalMode = "hybrid",
         top_k: int = 10,
         collection_id: Optional[UUID] = None,
+        document_type: Optional[str] = None,
         rerank: bool = False,
         enable_graph: bool = False,
         metadata_filter: Optional[Dict] = None,
@@ -37,6 +38,7 @@ class RetrievalsResource:
             mode: Retrieval mode - semantic, keyword, hybrid, hierarchical, or graph
             top_k: Number of results to return (1-100, default: 10)
             collection_id: Filter by collection UUID
+            document_type: Filter by document type (legal, academic, qa, table, book, email, manual, presentation, resume, general)
             rerank: Enable reranking with configured reranker (default: False)
             enable_graph: Enhance results with LightRAG knowledge graph (default: False)
                          Combines base retrieval with graph context for complex queries.
@@ -55,6 +57,13 @@ class RetrievalsResource:
             # Standard hybrid search
             results = client.retrievals.retrieve("What is RAG?", mode="hybrid")
 
+            # Filter by document type
+            results = client.retrievals.retrieve(
+                "termination clause",
+                mode="hybrid",
+                document_type="legal"
+            )
+
             # HybridRAG: Combine semantic search with knowledge graph
             results = client.retrievals.retrieve(
                 "How do proteins interact with diseases?",
@@ -69,10 +78,11 @@ class RetrievalsResource:
             mode=mode,
             top_k=top_k,
             collection_id=collection_id,
+            document_type=document_type,
             rerank=rerank,
             enable_graph=enable_graph,
             metadata_filter=metadata_filter,
-        ).model_dump(exclude_unset=True)
+        ).model_dump(mode='json', exclude_unset=True)
 
         response = self._client.request("POST", "/retrievals", json=data)
         return RetrievalResponse(**response.json())
@@ -90,6 +100,7 @@ class AsyncRetrievalsResource:
         mode: RetrievalMode = "hybrid",
         top_k: int = 10,
         collection_id: Optional[UUID] = None,
+        document_type: Optional[str] = None,
         rerank: bool = False,
         enable_graph: bool = False,
         metadata_filter: Optional[Dict] = None,
@@ -102,6 +113,7 @@ class AsyncRetrievalsResource:
             mode: Retrieval mode - semantic, keyword, hybrid, hierarchical, or graph
             top_k: Number of results to return (1-100, default: 10)
             collection_id: Filter by collection UUID
+            document_type: Filter by document type (legal, academic, qa, table, book, email, manual, presentation, resume, general)
             rerank: Enable reranking with configured reranker (default: False)
             enable_graph: Enhance results with LightRAG knowledge graph (default: False)
             metadata_filter: Filter by document metadata
@@ -114,10 +126,11 @@ class AsyncRetrievalsResource:
             mode=mode,
             top_k=top_k,
             collection_id=collection_id,
+            document_type=document_type,
             rerank=rerank,
             enable_graph=enable_graph,
             metadata_filter=metadata_filter,
-        ).model_dump(exclude_unset=True)
+        ).model_dump(mode='json', exclude_unset=True)
 
         response = await self._client.request("POST", "/retrievals", json=data)
         return RetrievalResponse(**response.json())

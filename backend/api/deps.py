@@ -3,7 +3,8 @@ FastAPI dependencies
 Authentication, database session, etc.
 """
 
-from fastapi import Depends, Header
+from fastapi import Depends, HTTPException
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from datetime import datetime
 from typing import Optional
@@ -18,16 +19,19 @@ from backend.utils.sanitize import get_safe_api_key_display
 
 logger = logging.getLogger(__name__)
 
+# Security scheme for Swagger
+security = HTTPBearer()
+
 
 async def get_current_user(
-    authorization: str = Header(..., description="Bearer token"),
+    credentials: HTTPAuthorizationCredentials = Depends(security),
     db: Session = Depends(get_db)
 ) -> User:
     """
     Get current authenticated user from API key
 
     Args:
-        authorization: Authorization header (format: "Bearer mn_test_...")
+        credentials: HTTP Bearer credentials from Authorization header
         db: Database session
 
     Returns:
@@ -36,12 +40,8 @@ async def get_current_user(
     Raises:
         HTTPException: 401 if authentication fails
     """
-    # Validate header format
-    if not authorization.startswith("Bearer "):
-        raise http_401_unauthorized("Invalid authorization header format")
-
-    # Extract API key
-    api_key = authorization[7:]  # Remove "Bearer " prefix
+    # Extract API key from credentials
+    api_key = credentials.credentials
 
     if not api_key:
         raise http_401_unauthorized("API key missing")

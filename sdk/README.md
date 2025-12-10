@@ -12,7 +12,7 @@ Official Python SDK for the Mnemosyne RAG (Retrieval-Augmented Generation) API. 
 - ⚡ **Async Ready**: Native async/await support with `AsyncClient`
 - 🔍 **5 Search Modes**: Semantic, keyword, hybrid, hierarchical, and graph-based (LightRAG)
 - 💬 **Streaming Chat**: Real-time SSE streaming for chat responses
-- 📹 **Video Support**: Ingest and search YouTube videos and MP4 files
+- 🎯 **Multimodal Support**: Documents, images, audio, video, and Excel files
 - 🔗 **LangChain Integration**: Drop-in retriever for LangChain workflows
 - 🛡️ **Robust**: Automatic retry with exponential backoff
 - 📦 **Zero Config**: Works out of the box with sensible defaults
@@ -100,7 +100,10 @@ for chunk in client.chat.chat(
     message="Explain transformers",
     stream=True
 ):
-    print(chunk, end="", flush=True)
+    if chunk.type == "delta" and chunk.content:
+        print(chunk.content, end="", flush=True)
+    elif chunk.type == "sources":
+        print(f"\n\nSources: {[s.title for s in chunk.sources]}")
 ```
 
 ## Core Concepts
@@ -142,6 +145,15 @@ doc = client.documents.create(
     collection_id=collection.id,
     file="path/to/file.pdf",
     metadata={"author": "John Doe"}
+)
+
+# Upload with document type hint for specialized processing
+doc = client.documents.create(
+    collection_id=collection.id,
+    file="contract.pdf",
+    metadata={
+        "document_type": "legal"  # legal, academic, qa, table, or general
+    }
 )
 
 # Upload YouTube video
@@ -237,6 +249,24 @@ results = client.retrievals.retrieve(
 )
 ```
 
+#### Document Type Filtering
+Filter results by document type (legal, academic, qa, table, general):
+```python
+# Search only legal documents
+results = client.retrievals.retrieve(
+    query="contract termination clause",
+    mode="hybrid",
+    document_type="legal"  # Only search legal documents
+)
+
+# Search only academic papers
+results = client.retrievals.retrieve(
+    query="methodology section",
+    mode="hybrid",
+    document_type="academic"  # Only search academic papers
+)
+```
+
 ### Chat
 
 Conversational AI with RAG-powered responses.
@@ -246,16 +276,30 @@ Conversational AI with RAG-powered responses.
 for chunk in client.chat.chat(
     message="What are transformers?",
     stream=True,
-    top_k=5  # Number of chunks to retrieve
+    retrieval={"top_k": 5}  # Retrieval configuration
 ):
-    print(chunk, end="")
+    if chunk.type == "delta" and chunk.content:
+        print(chunk.content, end="")
+    elif chunk.type == "sources":
+        print(f"\nSources: {[s.title for s in chunk.sources]}")
+
+# Non-streaming chat
+response = client.chat.chat(
+    message="What are transformers?",
+    stream=False
+)
+print(response.response)
+print(f"Sources: {response.sources}")
 
 # Multi-turn conversation
 session_id = None
 for message in ["What is RAG?", "How does it work?", "Give me an example"]:
     for chunk in client.chat.chat(message, session_id=session_id):
-        print(chunk, end="")
-    # Extract session_id from first response for continuity
+        if chunk.type == "delta" and chunk.content:
+            print(chunk.content, end="")
+        elif chunk.type == "done" and chunk.metadata:
+            session_id = chunk.metadata.session_id  # Extract for continuity
+    print()  # Newline between messages
 
 # List sessions
 sessions = client.chat.list_sessions()
@@ -266,6 +310,123 @@ messages = client.chat.get_session_messages(session_id)
 # Delete session
 client.chat.delete_session(session_id)
 ```
+
+### Answer Style Presets
+
+Control response style with presets:
+
+```python
+# Concise answers for quick lookups
+for chunk in client.chat.chat("What is RAG?", preset="concise"):
+    if chunk.type == "delta":
+        print(chunk.content, end="")
+
+# Research-grade responses with thorough analysis
+for chunk in client.chat.chat(
+    message="Compare vector databases",
+    preset="research",
+    model="gpt-4o"
+):
+    if chunk.type == "delta":
+        print(chunk.content, end="")
+
+# Technical precise answers with exact details
+for chunk in client.chat.chat(
+    message="How to implement cosine similarity?",
+    preset="technical"
+):
+    if chunk.type == "delta":
+        print(chunk.content, end="")
+```
+
+**Available Presets**:
+| Preset | Temperature | Max Tokens | Best For |
+|--------|-------------|------------|----------|
+| `concise` | 0.3 | 500 | Quick lookups, simple questions |
+| `detailed` | 0.5 | 2000 | General explanations (default) |
+| `research` | 0.2 | 4000 | Academic analysis, thorough coverage |
+| `technical` | 0.1 | 3000 | Precise, detail-oriented answers |
+| `creative` | 0.8 | 2000 | Brainstorming, exploratory answers |
+| `qna` | 0.4 | 4000 | Question generation (MCQs, quizzes, study materials) |
+
+### Custom Instructions
+
+Add custom guidance to your prompts for specialized tasks:
+
+```python
+# Generate MCQs from document content
+for chunk in client.chat.chat(
+    message="Create questions about machine learning",
+    preset="qna",
+    custom_instruction="Generate 10 multiple choice questions with 4 options each. Mark the correct answer."
+):
+    if chunk.type == "delta":
+        print(chunk.content, end="")
+
+# Focus on specific aspects
+for chunk in client.chat.chat(
+    message="Analyze this codebase",
+    preset="technical",
+    custom_instruction="Focus on security vulnerabilities and potential exploits"
+):
+    if chunk.type == "delta":
+        print(chunk.content, end="")
+```
+
+### Follow-up Questions
+
+Use `is_follow_up=True` to preserve context from previous exchanges:
+
+```python
+# Initial question
+session_id = None
+for chunk in client.chat.chat("What is RAG?", session_id=session_id):
+    if chunk.type == "delta":
+        print(chunk.content, end="")
+    elif chunk.type == "done" and chunk.metadata:
+        session_id = chunk.metadata.session_id
+print()
+
+# Follow-up question with context preservation
+for chunk in client.chat.chat(
+    "How does it compare to fine-tuning?",
+    session_id=session_id,
+    is_follow_up=True  # Preserves context from previous exchange
+):
+    if chunk.type == "delta":
+        print(chunk.content, end="")
+```
+
+### Deep Reasoning Mode
+
+Multi-step iterative reasoning for complex questions:
+
+```python
+# Deep reasoning decomposes queries and iteratively retrieves context
+for chunk in client.chat.chat(
+    message="Compare RAG architectures and recommend the best for legal documents",
+    preset="research",
+    reasoning_mode="deep",
+    model="gpt-4o"
+):
+    if chunk.type == "reasoning_step":
+        print(f"\n[Step {chunk.step}] {chunk.description}")
+    elif chunk.type == "sub_query":
+        print(f"  Searching: {chunk.query}")
+    elif chunk.type == "delta":
+        print(chunk.content, end="")
+    elif chunk.type == "sources":
+        print(f"\nSources: {len(chunk.sources)} documents")
+```
+
+**Stream Chunk Types**:
+- `delta`: Incremental text content
+- `sources`: Retrieved source documents
+- `reasoning_step`: Deep reasoning progress (step number + description)
+- `sub_query`: Sub-query being processed during deep reasoning
+- `usage`: Token usage statistics
+- `done`: Stream completion with metadata
+- `error`: Error message if something fails
 
 ## Advanced Examples
 
@@ -377,6 +538,43 @@ client = Client(
 )
 ```
 
+### Timeout and Retry Behavior
+
+The SDK includes built-in timeout and retry handling:
+
+```python
+# Configure for long-running operations
+client = Client(
+    api_key="mn_...",
+    timeout=300.0,  # 5 minutes for large document processing
+    max_retries=5   # More retries for unreliable networks
+)
+```
+
+**Timeout Behavior:**
+- Default: 60 seconds
+- Applies to all HTTP requests
+- Raises `APIError` on timeout
+
+**Retry Behavior:**
+- Default: 3 retries
+- Uses exponential backoff (1s, 2s, 4s, ...)
+- Retries on: network errors, 5xx errors, rate limits (429)
+- Does NOT retry: 4xx errors (except 429), validation errors
+
+**Rate Limiting:**
+The SDK automatically handles rate limits with exponential backoff:
+
+```python
+from mnemosyne import Client, RateLimitError
+
+try:
+    results = client.retrievals.retrieve(query="test")
+except RateLimitError:
+    # SDK already retried with backoff - retries exhausted
+    print("Rate limit exceeded after all retries")
+```
+
 ### Context Manager (Recommended)
 
 ```python
@@ -390,16 +588,24 @@ with Client(api_key="mn_...") as client:
 
 All examples are in the `examples/` directory:
 
+### Core Examples
 1. **`ingestion_workflow.py`** - Complete document ingestion lifecycle
 2. **`basic_retrieval.py`** - All 5 search modes demonstrated
-3. **`video_ingestion.py`** - YouTube and MP4 video processing
+3. **`streaming_chat.py`** - Real-time chat with SSE streaming
 4. **`async_streaming.py`** - Async/await with concurrent operations
-5. **`streaming_chat.py`** - Real-time chat with SSE streaming
-6. **`langchain_integration.py`** - LangChain retriever and QA chains
+5. **`langchain_integration.py`** - LangChain retriever and QA chains
+
+### Multimodal Examples
+6. **`video_ingestion.py`** - YouTube and MP4 video processing
+7. **`image_ingestion.py`** - Image analysis with GPT-4 Vision (PNG, JPG, WEBP)
+8. **`audio_ingestion.py`** - Audio transcription with Whisper (MP3, WAV, M4A, FLAC)
+9. **`excel_ingestion.py`** - Excel spreadsheet processing (XLSX, XLS)
+10. **`multimodal_ingestion.py`** - Combined multimodal knowledge base
 
 Run any example:
 ```bash
 python examples/ingestion_workflow.py
+python examples/multimodal_ingestion.py
 ```
 
 ## Development
@@ -462,7 +668,7 @@ MIT License - see [LICENSE](LICENSE) file.
 ## Support
 
 - Documentation: https://docs.mnemosyne.dev
-- Issues: https://github.com/yourusername/mnemosyne/issues
+- Issues: https://github.com/raghavpatnecha/Mnemosyne/issues
 - Email: support@mnemosyne.dev
 
 ## Acknowledgments

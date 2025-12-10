@@ -12,18 +12,45 @@ from uuid import UUID
 
 try:
     from lightrag import LightRAG, QueryParam
-    from lightrag.llm.openai import gpt_4o_mini_complete, openai_embed
+    from lightrag.llm.openai import openai_embed, openai_complete_if_cache
     from lightrag.kg.shared_storage import initialize_pipeline_status
+    from lightrag.rerank import jina_rerank
     LIGHTRAG_AVAILABLE = True
 except ImportError:
     LIGHTRAG_AVAILABLE = False
     LightRAG = None
     QueryParam = None
+    jina_rerank = None
+    openai_complete_if_cache = None
 
 from backend.config import settings
 from backend.storage import storage_backend
 
 logger = logging.getLogger(__name__)
+
+
+async def lightrag_llm_complete(
+    prompt: str,
+    system_prompt: str = None,
+    history_messages: list = [],
+    **kwargs
+) -> str:
+    """
+    Custom LLM completion function for LightRAG using configured CHAT_MODEL.
+
+    Uses settings.CHAT_MODEL instead of hardcoded gpt-4o-mini.
+    """
+    if not openai_complete_if_cache:
+        raise RuntimeError("LightRAG not available")
+
+    return await openai_complete_if_cache(
+        settings.CHAT_MODEL,  # Use configured model
+        prompt,
+        system_prompt=system_prompt,
+        history_messages=history_messages,
+        api_key=settings.OPENAI_API_KEY,
+        **kwargs
+    )
 
 
 class LightRAGInstanceManager:
@@ -55,6 +82,8 @@ class LightRAGInstanceManager:
         # Cache: {(user_id, collection_id): LightRAG instance}
         self._instances: Dict[Tuple[UUID, UUID], LightRAG] = {}
         self._initialized: Dict[Tuple[UUID, UUID], bool] = {}
+        # Track event loop ID to detect loop changes (Celery worker issue)
+        self._event_loop_ids: Dict[Tuple[UUID, UUID], int] = {}
 
         logger.info("LightRAG instance manager created")
 
@@ -104,10 +133,30 @@ class LightRAGInstanceManager:
 
         cache_key = (user_id, collection_id)
 
-        # Return cached instance if available
+        # Get current event loop ID to detect loop changes
+        # This is critical for Celery workers where each task may run in a different loop
+        try:
+            current_loop = asyncio.get_running_loop()
+            current_loop_id = id(current_loop)
+        except RuntimeError:
+            current_loop_id = None
+
+        # Check if we have a cached instance with the SAME event loop
         if cache_key in self._instances and self._initialized.get(cache_key, False):
-            logger.debug(f"Returning cached LightRAG instance for user {user_id}, collection {collection_id}")
-            return self._instances[cache_key]
+            cached_loop_id = self._event_loop_ids.get(cache_key)
+            if cached_loop_id == current_loop_id:
+                logger.debug(f"Returning cached LightRAG instance for user {user_id}, collection {collection_id}")
+                return self._instances[cache_key]
+            else:
+                # Event loop changed - must recreate instance to avoid PriorityQueue errors
+                logger.warning(
+                    f"Event loop changed for LightRAG instance (user {user_id}, collection {collection_id}). "
+                    f"Old loop: {cached_loop_id}, New loop: {current_loop_id}. Recreating instance."
+                )
+                # Clean up old instance (don't await finalize as it's bound to old loop)
+                del self._instances[cache_key]
+                del self._initialized[cache_key]
+                del self._event_loop_ids[cache_key]
 
         # Create new instance
         logger.info(f"Creating new LightRAG instance for user {user_id}, collection {collection_id}")
@@ -115,14 +164,20 @@ class LightRAGInstanceManager:
         try:
             working_dir = self._get_working_dir(user_id, collection_id)
 
+            # Configure reranking if Jina API key is available
+            rerank_func = None
+            if settings.LIGHTRAG_RERANK_ENABLED and settings.JINA_API_KEY and jina_rerank:
+                rerank_func = jina_rerank
+                logger.info("LightRAG Jina reranker enabled")
+
             instance = LightRAG(
                 working_dir=working_dir,
 
                 # Embedding function (OpenAI compatible)
                 embedding_func=openai_embed,
 
-                # LLM function (uses gpt-4o-mini by default)
-                llm_model_func=gpt_4o_mini_complete,
+                # LLM function (uses settings.CHAT_MODEL)
+                llm_model_func=lightrag_llm_complete,
 
                 # Chunking settings (align with Chonkie)
                 chunk_token_size=settings.LIGHTRAG_CHUNK_SIZE,
@@ -137,6 +192,9 @@ class LightRAGInstanceManager:
                 max_relation_tokens=settings.LIGHTRAG_MAX_RELATION_TOKENS,
                 max_total_tokens=settings.LIGHTRAG_MAX_TOKENS,
 
+                # Reranking (Jina if configured)
+                rerank_model_func=rerank_func,
+
                 # Storage backends (default: NetworkX + NanoVector)
                 # TODO: Migrate to PostgreSQL storage for multi-user support
             )
@@ -145,9 +203,10 @@ class LightRAGInstanceManager:
             await instance.initialize_storages()
             await initialize_pipeline_status()
 
-            # Cache instance
+            # Cache instance with event loop ID
             self._instances[cache_key] = instance
             self._initialized[cache_key] = True
+            self._event_loop_ids[cache_key] = current_loop_id
 
             logger.info(f"LightRAG instance initialized for user {user_id}, collection {collection_id}")
             return instance
@@ -192,7 +251,7 @@ class LightRAGInstanceManager:
         try:
             # Insert into knowledge graph (async)
             # This extracts entities, relationships, and builds the graph
-            await instance.insert(content)
+            await instance.ainsert(content)
 
             logger.info(f"Document {document_id} inserted successfully into LightRAG")
 
@@ -216,8 +275,9 @@ class LightRAGInstanceManager:
         user_id: UUID,
         collection_id: UUID,
         query: str,
-        mode: str = "hybrid"
-    ) -> str:
+        mode: str = "hybrid",
+        only_need_context: bool = False
+    ) -> Dict[str, Any]:
         """
         Query user's collection knowledge graph
 
@@ -226,29 +286,65 @@ class LightRAGInstanceManager:
             collection_id: Collection ID
             query: Query text
             mode: Query mode (local/global/hybrid/naive)
+            only_need_context: If False (default), LightRAG uses its LLM to generate
+                               a coherent answer from the graph context. This provides
+                               better entity-relationship synthesis at cost of extra LLM call.
+                               If True, return raw context without LLM call.
 
         Returns:
-            Query response
+            Dict with 'answer' (context text) and 'references' (source list)
         """
         if not self.enabled:
-            return "LightRAG is disabled"
+            return {"answer": "LightRAG is disabled", "references": []}
 
         instance = await self.get_instance(user_id, collection_id)
         if not instance:
-            return "Failed to get LightRAG instance"
+            return {"answer": "Failed to get LightRAG instance", "references": []}
 
-        logger.info(f"Querying LightRAG for user {user_id}, collection {collection_id} with mode '{mode}'")
+        logger.info(
+            f"Querying LightRAG for user {user_id}, collection {collection_id} "
+            f"with mode='{mode}', only_need_context={only_need_context}"
+        )
 
         try:
-            param = QueryParam(mode=mode)
-            result = await instance.query(query, param=param)
+            # Only enable reranking if Jina API key is configured
+            enable_rerank = settings.LIGHTRAG_RERANK_ENABLED and bool(settings.JINA_API_KEY)
+            param = QueryParam(
+                mode=mode,
+                enable_rerank=enable_rerank,
+                include_references=True,
+                only_need_context=only_need_context
+            )
+            result = await instance.aquery(query, param=param)
 
-            logger.info(f"LightRAG query completed successfully")
-            return result
+            # Handle different return types from LightRAG
+            # Could be string (old versions) or QueryResult object (new versions)
+            if isinstance(result, str):
+                answer = result
+                references = []
+            elif hasattr(result, 'content'):
+                # QueryResult object
+                answer = result.content if result.content else ""
+                # Extract references if available
+                references = []
+                if hasattr(result, 'reference_list') and result.reference_list:
+                    references = result.reference_list
+                elif hasattr(result, 'raw_data') and result.raw_data:
+                    # Try to extract from raw_data
+                    raw = result.raw_data
+                    if isinstance(raw, dict) and 'references' in raw:
+                        references = raw['references']
+            else:
+                # Fallback - treat as string
+                answer = str(result)
+                references = []
+
+            logger.info(f"LightRAG query completed: {len(answer)} chars, {len(references)} references")
+            return {"answer": answer, "references": references}
 
         except Exception as e:
             logger.error(f"LightRAG query failed: {e}", exc_info=True)
-            return f"Query failed: {str(e)}"
+            return {"answer": f"Query failed: {str(e)}", "references": []}
 
     async def delete_collection(self, user_id: UUID, collection_id: UUID):
         """
@@ -273,6 +369,8 @@ class LightRAGInstanceManager:
             del self._instances[cache_key]
             if cache_key in self._initialized:
                 del self._initialized[cache_key]
+            if cache_key in self._event_loop_ids:
+                del self._event_loop_ids[cache_key]
 
         # Delete working directory
         try:
@@ -306,6 +404,8 @@ class LightRAGInstanceManager:
             del self._instances[cache_key]
             if cache_key in self._initialized:
                 del self._initialized[cache_key]
+            if cache_key in self._event_loop_ids:
+                del self._event_loop_ids[cache_key]
 
         # Delete user's LightRAG directory
         try:
@@ -335,6 +435,7 @@ class LightRAGInstanceManager:
 
         self._instances.clear()
         self._initialized.clear()
+        self._event_loop_ids.clear()
         logger.info("LightRAG cleanup completed")
 
 

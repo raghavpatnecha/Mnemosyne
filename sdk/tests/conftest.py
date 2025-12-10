@@ -14,7 +14,7 @@ def api_key():
 @pytest.fixture
 def base_url():
     """Test base URL"""
-    return "http://localhost:8000"
+    return "http://localhost:8000/api/v1"
 
 
 @pytest.fixture
@@ -33,21 +33,21 @@ def async_client(api_key, base_url):
 
 @pytest.fixture
 def collection_id():
-    """Test collection UUID"""
-    return uuid4()
+    """Test collection UUID as string"""
+    return str(uuid4())
 
 
 @pytest.fixture
 def document_id():
-    """Test document UUID"""
-    return uuid4()
+    """Test document UUID as string"""
+    return str(uuid4())
 
 
 @pytest.fixture
 def mock_collection_response(collection_id):
     """Mock collection response data"""
     return {
-        "id": str(collection_id),
+        "id": collection_id,  # Already string from fixture
         "user_id": str(uuid4()),
         "name": "Test Collection",
         "description": "Test description",
@@ -63,8 +63,8 @@ def mock_collection_response(collection_id):
 def mock_document_response(document_id, collection_id):
     """Mock document response data"""
     return {
-        "id": str(document_id),
-        "collection_id": str(collection_id),
+        "id": document_id,  # Already string from fixture
+        "collection_id": collection_id,  # Already string from fixture
         "user_id": str(uuid4()),
         "title": "Test Document",
         "filename": "test.pdf",

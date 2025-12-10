@@ -131,12 +131,14 @@ async function main() {
     console.log('Question: "Summarize the main topics discussed in the videos"\n');
     console.log('Answer: ');
 
-    for await (const chunk of client.chat.chat({
+    for await (const event of client.chat.chat({
       message: 'Summarize the main topics discussed in the videos',
       collection_id: collection.id,
       stream: true,
     })) {
-      process.stdout.write(chunk);
+      if (event.type === 'delta') {
+        process.stdout.write(event.delta ?? '');
+      }
     }
 
     console.log('\n\n' + '='.repeat(70));

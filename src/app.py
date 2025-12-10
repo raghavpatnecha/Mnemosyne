@@ -14,9 +14,25 @@ app = Quart(__name__, template_folder='./templates', static_folder='./static')
 app = cors(app)
 
 
+def sanitize_optional_param(value):
+    """Convert invalid optional params (string 'None', 'null', etc.) to Python None."""
+    if value in (None, '', 'None', 'null', 'undefined'):
+        return None
+    return value
+
+
 @app.route('/')
 async def home():
     """Render the main application page"""
+    return await render_template('index.html')
+
+
+@app.route('/search/<path:query>')
+async def search_page(query: str):
+    """
+    Render the main page for search URLs.
+    The actual search is triggered by JavaScript on page load.
+    """
     return await render_template('index.html')
 
 
@@ -24,19 +40,50 @@ async def home():
 async def search(query: str) -> Response:
     """
     Handle streaming search/chat requests (legacy endpoint).
-    Maintains compatibility with existing frontend.
+    Maintains compatibility with existing frontend while supporting new features.
+
+    Query parameters:
+        collection_id: Optional collection ID to filter results
+        session_id: Optional session ID for multi-turn conversations
+        mode: Search mode (hybrid, semantic, keyword, hierarchical, graph)
+        preset: Answer style (concise, detailed, research, technical, creative, qna)
+        reasoning_mode: Reasoning mode (standard, deep)
+        model: LLM model to use (any LiteLLM-compatible model)
+        temperature: Override temperature (0.0-1.0)
+        max_tokens: Override max tokens for response
+        custom_instruction: Custom instruction for additional guidance
+        is_follow_up: Whether this is a follow-up question
     """
     final_query = decode_query(query)
 
     # Get optional query parameters
     args = request.args
-    collection_id = args.get('collection_id')
-    session_id = args.get('session_id')
-    mode = args.get('mode')
+    collection_id = sanitize_optional_param(args.get('collection_id'))
+    session_id = sanitize_optional_param(args.get('session_id'))
+    mode = sanitize_optional_param(args.get('mode'))
+    # New enhanced chat parameters
+    preset = sanitize_optional_param(args.get('preset'))
+    reasoning_mode = sanitize_optional_param(args.get('reasoning_mode'))
+    model = sanitize_optional_param(args.get('model'))
+    temperature = args.get('temperature', type=float)
+    max_tokens = args.get('max_tokens', type=int)
+    custom_instruction = sanitize_optional_param(args.get('custom_instruction'))
+    is_follow_up = args.get('is_follow_up', 'false').lower() == 'true'
 
     return Response(
-        stream_response(final_query, collection_id=collection_id,
-                       session_id=session_id, mode=mode),
+        stream_response(
+            final_query,
+            collection_id=collection_id,
+            session_id=session_id,
+            mode=mode,
+            preset=preset,
+            reasoning_mode=reasoning_mode,
+            model=model,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            custom_instruction=custom_instruction,
+            is_follow_up=is_follow_up
+        ),
         mimetype='text/event-stream',
         headers={
             'Cache-Control': 'no-cache',
@@ -49,20 +96,52 @@ async def search(query: str) -> Response:
 async def chat():
     """
     Handle chat requests with JSON payload.
-    Supports collection filtering and multi-turn conversations.
+    Supports collection filtering, multi-turn conversations, and enhanced features.
+
+    JSON body parameters:
+        message/query: The chat message (required)
+        collection_id: Optional collection ID to filter results
+        session_id: Optional session ID for multi-turn conversations
+        mode: Search mode (hybrid, semantic, keyword, hierarchical, graph)
+        preset: Answer style (concise, detailed, research, technical, creative, qna)
+        reasoning_mode: Reasoning mode (standard, deep)
+        model: LLM model to use (any LiteLLM-compatible model)
+        temperature: Override temperature (0.0-1.0)
+        max_tokens: Override max tokens for response
+        custom_instruction: Custom instruction for additional guidance
+        is_follow_up: Whether this is a follow-up question
     """
     data = await request.get_json()
     query = data.get('message') or data.get('query')
-    collection_id = data.get('collection_id')
-    session_id = data.get('session_id')
-    mode = data.get('mode')
+    collection_id = sanitize_optional_param(data.get('collection_id'))
+    session_id = sanitize_optional_param(data.get('session_id'))
+    mode = sanitize_optional_param(data.get('mode'))
+    # New enhanced chat parameters
+    preset = sanitize_optional_param(data.get('preset'))
+    reasoning_mode = sanitize_optional_param(data.get('reasoning_mode'))
+    model = sanitize_optional_param(data.get('model'))
+    temperature = data.get('temperature')
+    max_tokens = data.get('max_tokens')
+    custom_instruction = sanitize_optional_param(data.get('custom_instruction'))
+    is_follow_up = data.get('is_follow_up', False)
 
     if not query:
         return jsonify({"error": "Missing 'message' or 'query' field"}), 400
 
     return Response(
-        stream_response(query, collection_id=collection_id,
-                       session_id=session_id, mode=mode),
+        stream_response(
+            query,
+            collection_id=collection_id,
+            session_id=session_id,
+            mode=mode,
+            preset=preset,
+            reasoning_mode=reasoning_mode,
+            model=model,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            custom_instruction=custom_instruction,
+            is_follow_up=is_follow_up
+        ),
         mimetype='text/event-stream',
         headers={
             'Cache-Control': 'no-cache',
@@ -79,8 +158,8 @@ async def retrieve():
     """
     data = await request.get_json()
     query = data.get('query')
-    collection_id = data.get('collection_id')
-    mode = data.get('mode')
+    collection_id = sanitize_optional_param(data.get('collection_id'))
+    mode = sanitize_optional_param(data.get('mode'))
     top_k = data.get('top_k')
 
     if not query:
@@ -115,15 +194,17 @@ async def list_collections():
                 }
                 for c in collections.data
             ],
-            "total": collections.total,
-            "limit": collections.limit,
-            "offset": collections.offset
+            "total": collections.pagination.get("total", 0),
+            "limit": collections.pagination.get("limit", limit),
+            "offset": collections.pagination.get("offset", offset)
         })
 
     except MnemosyneError as e:
-        return jsonify({"error": str(e)}), 400
+        print(f"MnemosyneError in list_collections: {type(e).__name__}: {e}")
+        return jsonify({"error": str(e), "type": type(e).__name__}), 400
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        print(f"Exception in list_collections: {type(e).__name__}: {e}")
+        return jsonify({"error": str(e), "type": type(e).__name__}), 500
 
 
 @app.route('/api/collections', methods=['POST'])
@@ -211,7 +292,7 @@ async def list_documents():
         return jsonify({"error": "SDK not configured"}), 500
 
     try:
-        collection_id = request.args.get('collection_id')
+        collection_id = sanitize_optional_param(request.args.get('collection_id'))
         limit = request.args.get('limit', 20, type=int)
         offset = request.args.get('offset', 0, type=int)
 
@@ -233,9 +314,9 @@ async def list_documents():
                 }
                 for d in docs.data
             ],
-            "total": docs.total,
-            "limit": docs.limit,
-            "offset": docs.offset
+            "total": docs.pagination.get("total", 0),
+            "limit": docs.pagination.get("limit", limit),
+            "offset": docs.pagination.get("offset", offset)
         })
 
     except MnemosyneError as e:
@@ -247,6 +328,8 @@ async def list_documents():
 @app.route('/api/documents', methods=['POST'])
 async def upload_document():
     """Upload a document (file or URL)"""
+    import io
+
     client = get_sdk_client()
     if not client:
         return jsonify({"error": "SDK not configured"}), 500
@@ -262,10 +345,16 @@ async def upload_document():
         file = files.get('file')
 
         if file:
+            # Read file content into a BytesIO buffer and set name attribute
+            # The SDK needs a file-like object with a .name attribute
+            file_content = file.stream.read()
+            file_buffer = io.BytesIO(file_content)
+            file_buffer.name = file.filename  # SDK uses this for the filename
+
             # Upload file
             doc = client.documents.create(
                 collection_id=collection_id,
-                file=file.stream,
+                file=file_buffer,
                 metadata={"filename": file.filename}
             )
         else:
@@ -436,10 +525,12 @@ async def configure_api_key():
         return jsonify({"error": "Missing 'api_key' field"}), 400
 
     try:
+        print(f"Configuring API key: {api_key[:10]}...")
         os.environ['MNEMOSYNE_API_KEY'] = api_key
         config.SDK.API_KEY = api_key
 
         success = reinitialize_client(api_key)
+        print(f"SDK client reinitialized: {success}")
 
         if success:
             return jsonify({
@@ -450,6 +541,7 @@ async def configure_api_key():
             return jsonify({"error": "Failed to initialize SDK client"}), 500
 
     except Exception as e:
+        print(f"Error configuring API key: {e}")
         return jsonify({"error": str(e)}), 500
 
 

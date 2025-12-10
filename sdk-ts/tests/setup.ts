@@ -40,16 +40,19 @@ export function createMockResponse(data: unknown, status = 200): Response {
 }
 
 /**
- * Create a mock SSE Response
+ * Create a mock SSE Response with proper JSON-formatted events
  */
 export function createMockSSEResponse(chunks: string[]): Response {
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
     start(controller) {
       chunks.forEach((chunk) => {
-        controller.enqueue(encoder.encode(`data: ${chunk}\n\n`));
+        // Format as proper SSE JSON event matching SSEEvent interface
+        const event = JSON.stringify({ type: 'delta', delta: chunk });
+        controller.enqueue(encoder.encode(`data: ${event}\n\n`));
       });
-      controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+      // Send done event
+      controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'done', done: true })}\n\n`));
       controller.close();
     },
   });

@@ -10,6 +10,10 @@ from backend.parsers.excel_parser import ExcelParser
 from backend.parsers.image_parser import ImageParser
 from backend.parsers.youtube_parser import YouTubeParser
 from backend.parsers.video_parser import VideoParser
+from backend.parsers.ppt_parser import PPTParser
+from backend.parsers.json_parser import JSONParser
+from backend.parsers.email_parser import EmailParser
+from backend.parsers.figure_parser import FigureParser, FigureResult
 
 
 class ParserFactory:
@@ -17,13 +21,16 @@ class ParserFactory:
 
     def __init__(self):
         self.parsers = [
-            DoclingParser(),
+            PPTParser(),        # PowerPoint files (PPTX, PPT) - before Docling
+            ExcelParser(),      # Excel files - before Docling
+            JSONParser(),       # JSON and JSONL files - before Docling
+            EmailParser(),      # Email files (EML) - before Docling
+            DoclingParser(),    # PDF, DOCX (universal fallback for documents)
             YouTubeParser(),    # YouTube URLs (must be before VideoParser)
             VideoParser(),      # Video files (MP4, AVI, MOV, WEBM)
-            AudioParser(),
-            ExcelParser(),
-            ImageParser(),
-            TextParser(),
+            AudioParser(),      # Audio files
+            ImageParser(),      # Image files
+            TextParser(),       # Plain text files (fallback)
         ]
 
     def get_parser(self, content_type: str):
@@ -55,4 +62,9 @@ __all__ = [
     "ImageParser",
     "YouTubeParser",
     "VideoParser",
+    "PPTParser",
+    "JSONParser",
+    "EmailParser",
+    "FigureParser",
+    "FigureResult",
 ]

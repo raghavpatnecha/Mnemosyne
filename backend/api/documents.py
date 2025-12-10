@@ -27,7 +27,9 @@ from backend.schemas.document import (
 from backend.core.exceptions import http_404_not_found, http_400_bad_request
 from backend.storage import storage_backend
 from backend.tasks.process_document import process_document_task
+from backend.utils.content_type import detect_content_type
 from backend.services.lightrag_service import get_lightrag_manager
+from backend.processors import VALID_DOCUMENT_TYPES
 from backend.config import settings
 import logging
 
@@ -44,10 +46,10 @@ async def create_document(
     current_user: User = Depends(get_current_user)
 ):
     """
-    Upload document (metadata only in Week 1, processing in Week 2)
+    Upload document and trigger async processing
 
-    **Week 1**: Stores metadata, sets status="pending" (no processing)
-    **Week 2**: Will add Celery task for processing
+    Stores document metadata and file, then triggers Celery task for processing
+    (chunking, embedding, indexing).
 
     Args:
         collection_id: Collection to add document to
@@ -132,10 +134,27 @@ async def create_document(
 
         validate_metadata_values(metadata_dict)
 
+        # Validate document_type if provided (for domain processor selection)
+        if "document_type" in metadata_dict:
+            doc_type = metadata_dict["document_type"]
+            if doc_type not in VALID_DOCUMENT_TYPES:
+                raise http_400_bad_request(
+                    f"Invalid document_type '{doc_type}'. "
+                    f"Valid types: {', '.join(sorted(VALID_DOCUMENT_TYPES))}"
+                )
+
     except json.JSONDecodeError:
         raise http_400_bad_request("Invalid JSON metadata")
     except ValueError as e:
         raise http_400_bad_request(f"Invalid metadata: {e}")
+
+    # Detect content type using extension-first strategy (fixes application/octet-stream issue)
+    detected_content_type = detect_content_type(
+        filename=file.filename,
+        content=content,
+        client_content_type=file.content_type
+    )
+    logger.info(f"Detected content type for {file.filename}: {detected_content_type} (client sent: {file.content_type})")
 
     # Create document (using exact column names)
     document = Document(
@@ -143,11 +162,11 @@ async def create_document(
         user_id=current_user.id,
         title=file.filename,
         filename=file.filename,
-        content_type=file.content_type,
+        content_type=detected_content_type,
         size_bytes=len(content),
         content_hash=content_hash,
         status="pending",
-        metadata=metadata_dict,
+        metadata_=metadata_dict,  # Use metadata_ (SQLAlchemy reserves 'metadata')
         processing_info={}
     )
 
@@ -155,23 +174,56 @@ async def create_document(
     db.commit()
     db.refresh(document)
 
-    # Save file to storage with user-scoped path
-    file_path = storage_backend.save(
-        file=content,
-        user_id=current_user.id,
-        collection_id=collection_id,
-        document_id=document.id,
-        filename=file.filename,
-        content_type=file.content_type
-    )
+    file_path = None
+    try:
+        # Save file to storage with user-scoped path
+        file_path = storage_backend.save(
+            file=content,
+            user_id=current_user.id,
+            collection_id=collection_id,
+            document_id=document.id,
+            filename=file.filename,
+            content_type=detected_content_type
+        )
 
-    # Update document with storage path
-    document.processing_info = {"file_path": file_path}
-    db.commit()
-    db.refresh(document)
+        # Update document with storage path
+        document.processing_info = {"file_path": file_path}
+        db.commit()
+        db.refresh(document)
 
-    # Trigger async processing (Week 2)
-    process_document_task.delay(str(document.id))
+        # Trigger async processing - if this fails, we need to clean up
+        process_document_task.delay(str(document.id))
+
+    except Exception as e:
+        logger.error(f"Failed to complete document upload for {document.id}: {e}")
+
+        # Rollback database transaction
+        db.rollback()
+
+        # Clean up: delete file from storage if it was saved
+        if file_path:
+            try:
+                storage_backend.delete(
+                    storage_path=file_path,
+                    user_id=current_user.id
+                )
+                logger.info(f"Cleaned up file: {file_path}")
+            except Exception as cleanup_error:
+                logger.error(f"Failed to clean up file {file_path}: {cleanup_error}")
+
+        # Delete document record from database
+        try:
+            db.delete(document)
+            db.commit()
+            logger.info(f"Deleted document record: {document.id}")
+        except Exception as db_error:
+            logger.error(f"Failed to delete document record: {db_error}")
+            db.rollback()
+
+        # Re-raise the original exception
+        raise http_400_bad_request(
+            f"Failed to process document upload: {str(e)}"
+        )
 
     # Build response (using exact column names)
     return DocumentResponse(
@@ -358,7 +410,11 @@ async def update_document(
     update_data = document_update.dict(exclude_unset=True)
 
     for field, value in update_data.items():
-        setattr(document, field, value)
+        # Map 'metadata' to 'metadata_' (SQLAlchemy reserves 'metadata')
+        if field == 'metadata':
+            setattr(document, 'metadata_', value)
+        else:
+            setattr(document, field, value)
 
     db.commit()
     db.refresh(document)

@@ -29,7 +29,7 @@ class ImageParser:
         if not settings.OPENAI_API_KEY:
             logger.warning("OPENAI_API_KEY not set - ImageParser will fail at parse time")
         self.client = OpenAI(api_key=settings.OPENAI_API_KEY)
-        self.model = "gpt-4o"
+        self.model = settings.VISION_MODEL  # Use centralized config
 
     def can_parse(self, content_type: str) -> bool:
         """
@@ -41,6 +41,10 @@ class ImageParser:
         Returns:
             True if content type is supported, False otherwise
         """
+        if not content_type:
+            return False
+        if not content_type:
+            return False
         return content_type.lower() in self.SUPPORTED_FORMATS
 
     def _encode_image(self, file_path: str) -> str:
@@ -142,7 +146,7 @@ class ImageParser:
                         ],
                     }
                 ],
-                max_tokens=1000,
+                max_completion_tokens=1000,
                 temperature=0.1,
             )
 

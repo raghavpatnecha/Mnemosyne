@@ -79,6 +79,8 @@ class YouTubeParser:
         Returns:
             True if parser supports this content type
         """
+        if not content_type:
+            return False
         return content_type in self.SUPPORTED_FORMATS
 
     def is_youtube_url(self, text: str) -> bool:
@@ -233,8 +235,9 @@ class YouTubeParser:
         logger.info(f"Extracting transcript for YouTube video: {video_id}")
 
         try:
-            # Fetch transcript
-            transcript_list = YouTubeTranscriptApi.get_transcript(video_id)
+            # Fetch transcript using new API (youtube_transcript_api changed from class method to instance method)
+            api = YouTubeTranscriptApi()
+            transcript_list = api.fetch(video_id)
 
             # Format transcript with timestamps
             transcript_lines = []

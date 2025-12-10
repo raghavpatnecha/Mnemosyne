@@ -7,6 +7,7 @@ from sqlalchemy import Column, String, Text, ForeignKey, JSON, DateTime
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
+from sqlalchemy.ext.mutable import MutableDict, MutableList
 import uuid
 
 from backend.database import Base
@@ -46,8 +47,8 @@ class ChatMessage(Base):
     content = Column(Text, nullable=False)
 
     # Retrieval metadata (for assistant messages)
-    chunk_ids = Column(JSON, default=list)
-    metadata_ = Column("metadata", JSON, default=dict)  # metadata is reserved by SQLAlchemy
+    chunk_ids = Column(MutableList.as_mutable(JSON), default=list)  # MutableList tracks list changes
+    metadata_ = Column("metadata", MutableDict.as_mutable(JSON), default=dict)  # metadata is reserved by SQLAlchemy
 
     created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
 

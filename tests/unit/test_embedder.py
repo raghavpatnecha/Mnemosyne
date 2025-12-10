@@ -70,11 +70,11 @@ class TestOpenAIEmbedder:
         mock_openai_class.return_value = mock_client
 
         # Mock embeddings response
-        def create_mock_response(texts):
+        def create_mock_response(input=None, **kwargs):
             mock_response = MagicMock()
             mock_response.data = [
                 MagicMock(embedding=[0.1] * 1536)
-                for _ in texts
+                for _ in input
             ]
             return mock_response
 

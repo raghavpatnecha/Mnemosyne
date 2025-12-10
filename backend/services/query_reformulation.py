@@ -22,19 +22,34 @@ class QueryReformulationService:
     Query reformulation for better retrieval
 
     Techniques:
-    1. Expand - Add synonyms and related terms
+    1. Expand - Add synonyms and related terms (with optional local synonym service)
     2. Clarify - Fix typos, expand acronyms
     3. Multi - Generate 3-5 related queries
+    4. Multi-Expand - Generate multiple queries AND expand each with synonyms (best coverage)
+    5. Synonym - Local synonym expansion only (no LLM, fast)
 
     Cost: ~100-200 tokens per reformulation (~$0.00003)
     Recommended: Enable for premium users only
     """
 
-    def __init__(self):
-        """Initialize OpenAI client and cache"""
+    def __init__(self, use_local_synonyms: bool = True):
+        """Initialize OpenAI client, cache, and synonym service"""
         self.client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
         self.cache = CacheService()
         self.enabled = settings.QUERY_REFORMULATION_ENABLED
+        self._synonym_service = None
+        self._use_local_synonyms = use_local_synonyms
+
+    @property
+    def synonym_service(self):
+        """Lazy load synonym service."""
+        if self._synonym_service is None and self._use_local_synonyms:
+            try:
+                from backend.nlp.synonym import get_synonym_service
+                self._synonym_service = get_synonym_service()
+            except ImportError:
+                logger.debug("Synonym service not available")
+        return self._synonym_service
 
     async def reformulate(
         self,
@@ -70,12 +85,17 @@ class QueryReformulationService:
                 result = await self._clarify_query(query)
             elif mode == "multi":
                 result = await self._generate_multi_queries(query)
+            elif mode == "multi_expand":
+                result = await self._multi_expand_query(query)
+            elif mode == "synonym":
+                # Fast local synonym expansion (no LLM)
+                result = self._local_synonym_expand(query)
             else:
                 logger.warning(f"Unknown reformulation mode: {mode}")
-                return query if mode != "multi" else [query]
+                return query if mode not in ["multi", "multi_expand"] else [query]
 
-            # Cache result - use JSON for multi mode to avoid separator ambiguity
-            cache_value = json.dumps(result) if mode == "multi" else result
+            # Cache result - use JSON for list modes to avoid separator ambiguity
+            cache_value = json.dumps(result) if mode in ["multi", "multi_expand"] else result
             self.cache.set_reformulated_query(query, mode, cache_value)
 
             return result
@@ -105,13 +125,13 @@ Expanded query:"""
                 model=settings.CHAT_MODEL,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.3,
-                max_tokens=100,
+                max_completion_tokens=100,
                 timeout=10.0  # Prevent hanging requests
             )
 
             expanded = response.choices[0].message.content.strip()
 
-            logger.debug(f"Expanded query: '{query}' -> '{expanded}'")
+            logger.info(f"Query reformulation: '{query}' -> '{expanded}'")
             return expanded
 
         except Exception as e:
@@ -139,7 +159,7 @@ Clarified query:"""
                 model=settings.CHAT_MODEL,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.1,  # Lower temperature for clarity
-                max_tokens=100,
+                max_completion_tokens=100,
                 timeout=10.0  # Prevent hanging requests
             )
 
@@ -177,7 +197,7 @@ Alternative queries:"""
                 model=settings.CHAT_MODEL,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.7,
-                max_tokens=200,
+                max_completion_tokens=200,
                 timeout=10.0  # Prevent hanging requests
             )
 
@@ -204,6 +224,68 @@ Alternative queries:"""
         except Exception as e:
             logger.error(f"Multi-query generation failed: {e}")
             return [query]
+
+    async def _multi_expand_query(self, query: str) -> List[str]:
+        """
+        Generate multiple queries AND expand each with synonyms.
+        Best coverage for complex queries.
+
+        Example:
+        Input: "ML models performance"
+        Output: [
+            "ML models performance machine learning algorithms metrics evaluation",
+            "neural network model accuracy benchmarks",
+            "deep learning model efficiency optimization"
+        ]
+        """
+        prompt = f"""Generate 3 different search queries for this topic.
+For each query, include 2-3 synonyms or related terms to maximize search coverage.
+Output only the expanded queries, one per line, without numbering.
+
+Original query: {query}
+
+Expanded alternative queries:"""
+
+        try:
+            response = await self.client.chat.completions.create(
+                model=settings.CHAT_MODEL,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.5,
+                max_completion_tokens=300,
+                timeout=10.0
+            )
+
+            content = response.choices[0].message.content.strip()
+            lines = content.split("\n")
+
+            # Parse and clean queries
+            queries = []
+            for line in lines:
+                clean = line.strip().lstrip("123456789.-) ")
+                if clean and len(clean) > 5:  # Filter out short/empty lines
+                    queries.append(clean)
+
+            # Ensure we have at least the original (expanded)
+            if not queries:
+                expanded_original = await self._expand_query(query)
+                queries = [expanded_original]
+
+            # Limit to 4 total queries
+            queries = queries[:4]
+
+            logger.info(
+                f"Multi-expand reformulation: '{query}' -> {len(queries)} queries"
+            )
+            return queries
+
+        except Exception as e:
+            logger.error(f"Multi-expand query generation failed: {e}")
+            # Fallback to single expanded query
+            try:
+                expanded = await self._expand_query(query)
+                return [expanded]
+            except Exception:
+                return [query]
 
     async def reformulate_with_context(
         self,
@@ -248,7 +330,7 @@ Reformulated query:"""
                 model=settings.CHAT_MODEL,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.3,
-                max_tokens=150,
+                max_completion_tokens=150,
                 timeout=10.0  # Prevent hanging requests
             )
 
@@ -266,3 +348,41 @@ Reformulated query:"""
     def is_available(self) -> bool:
         """Check if reformulation is available"""
         return self.enabled and settings.OPENAI_API_KEY is not None
+
+    def _local_synonym_expand(self, query: str) -> str:
+        """
+        Expand query using local synonym service only (no LLM).
+
+        Fast and free alternative to LLM-based expansion.
+        Uses custom dictionary and WordNet.
+
+        Args:
+            query: Original query
+
+        Returns:
+            Expanded query with synonyms
+        """
+        if not self.synonym_service:
+            return query
+
+        try:
+            expanded = self.synonym_service.expand_query(query, max_expansions=3)
+            logger.debug(f"Local synonym expansion: '{query}' -> '{expanded}'")
+            return expanded
+        except Exception as e:
+            logger.warning(f"Local synonym expansion failed: {e}")
+            return query
+
+    def get_synonyms(self, word: str) -> list:
+        """
+        Get synonyms for a single word.
+
+        Args:
+            word: Word to find synonyms for
+
+        Returns:
+            List of synonyms
+        """
+        if not self.synonym_service:
+            return []
+        return self.synonym_service.get_synonyms(word)

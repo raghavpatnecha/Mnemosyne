@@ -1,136 +1,270 @@
 /**
  * SDK Features Styles
- * Styles for collection management, document upload, and search configuration
+ * Clean UI for collections, documents, and settings
+ * Uses existing CSS variables from style.css
  */
 
-/* ========== Toolbar ========== */
-.sdk-toolbar {
+/* ========== Left Sidebar ========== */
+.left-sidebar {
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 320px;
+    height: 100vh;
+    background: #1a1a2e;
+    color: #fff;
+    display: flex;
+    flex-direction: column;
+    z-index: 100;
+    box-shadow: 2px 0 10px rgba(0, 0, 0, 0.2);
+    transform: translateX(0);
+    transition: transform 0.3s ease;
+    font-family: 'Circular Spotify Text-Book', 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.left-sidebar.hidden {
+    transform: translateX(-100%);
+}
+
+.sidebar-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 12px 20px;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-    flex-wrap: wrap;
-    gap: 15px;
-    position: sticky;
-    top: 0;
-    z-index: 1000;
+    padding: 16px 20px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-.toolbar-section {
+.sidebar-header h3 {
+    margin: 0;
+    font-size: 14px;
+    font-family: 'Circular Spotify Text-Medium', 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.sidebar-divider {
+    height: 1px;
+    background: rgba(255, 255, 255, 0.1);
+    margin: 8px 0;
+}
+
+/* Collections & Documents Lists */
+.collections-list,
+.documents-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 12px;
+    min-height: 120px;
+    max-height: 40vh;
+}
+
+.collection-item,
+.document-item {
     display: flex;
     align-items: center;
-    gap: 8px;
-    flex-wrap: wrap;
-}
-
-.toolbar-section label {
-    font-weight: 600;
-    font-size: 14px;
-    margin-right: 5px;
-}
-
-/* Collection Selector */
-.collection-selector {
-    padding: 6px 12px;
-    border: 2px solid rgba(255, 255, 255, 0.3);
-    border-radius: 6px;
-    background: rgba(255, 255, 255, 0.15);
-    color: white;
-    font-size: 14px;
-    min-width: 180px;
+    padding: 10px 12px;
+    border-radius: 8px;
     cursor: pointer;
-    transition: all 0.3s ease;
+    transition: background 0.2s;
+    gap: 10px;
+    margin-bottom: 4px;
 }
 
-.collection-selector:hover {
-    background: rgba(255, 255, 255, 0.25);
-    border-color: rgba(255, 255, 255, 0.5);
+.collection-item:hover,
+.document-item:hover {
+    background: rgba(255, 255, 255, 0.1);
 }
 
-.collection-selector option {
-    background: #764ba2;
-    color: white;
+.collection-item.active {
+    background: var(--primary-color);
 }
 
-/* Toolbar Buttons */
-.toolbar-btn {
-    padding: 6px 14px;
-    border: 2px solid rgba(255, 255, 255, 0.3);
-    border-radius: 6px;
-    background: rgba(255, 255, 255, 0.15);
-    color: white;
+.collection-item svg,
+.document-item svg {
+    flex-shrink: 0;
+    opacity: 0.7;
+}
+
+.collection-item.active svg {
+    opacity: 1;
+}
+
+.item-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.item-name {
     font-size: 14px;
-    cursor: pointer;
-    transition: all 0.3s ease;
+    font-family: 'Circular Spotify Text-Medium', 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
-.toolbar-btn:hover {
-    background: rgba(255, 255, 255, 0.25);
-    transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+.item-meta {
+    font-size: 11px;
+    font-family: 'Circular Spotify Text-Book', 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    color: rgba(255, 255, 255, 0.5);
+    margin-top: 2px;
 }
 
-.toolbar-btn.primary {
-    background: rgba(255, 255, 255, 0.3);
-    border-color: rgba(255, 255, 255, 0.5);
+.item-status {
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.1);
 }
 
-.toolbar-btn.primary:hover {
-    background: rgba(255, 255, 255, 0.4);
+.item-status.processing {
+    background: rgba(250, 204, 21, 0.2);
+    color: #facc15;
 }
 
-/* Search Mode Options */
-.mode-option {
-    padding: 6px 12px;
-    border: 2px solid rgba(255, 255, 255, 0.3);
+.item-status.completed {
+    background: rgba(74, 222, 128, 0.2);
+    color: #4ade80;
+}
+
+.item-status.failed {
+    background: rgba(248, 113, 113, 0.2);
+    color: #f87171;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 20px;
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 13px;
+    font-family: 'Circular Spotify Text-Book', 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    line-height: 1.5;
+}
+
+/* Icon Buttons */
+.icon-btn {
+    width: 32px;
+    height: 32px;
+    border: none;
     border-radius: 6px;
     background: rgba(255, 255, 255, 0.1);
     color: rgba(255, 255, 255, 0.8);
-    font-size: 13px;
     cursor: pointer;
-    transition: all 0.3s ease;
-    font-weight: 500;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
 }
 
-.mode-option:hover {
+.icon-btn:hover {
     background: rgba(255, 255, 255, 0.2);
-    color: white;
+    color: #fff;
 }
 
-.mode-option.active {
-    background: rgba(255, 255, 255, 0.9);
-    color: #764ba2;
-    border-color: white;
-    font-weight: 600;
-}
-
-/* Graph Toggle */
-.graph-toggle {
-    padding: 6px 10px;
-    border: 2px solid rgba(255, 255, 255, 0.3);
+.icon-btn-small {
+    padding: 6px 12px;
+    border: 1px solid #e0e0e0;
     border-radius: 6px;
-    background: rgba(255, 255, 255, 0.1);
-    color: rgba(255, 255, 255, 0.6);
-    font-size: 18px;
+    background: #fff;
+    color: #333;
+    font-size: 12px;
     cursor: pointer;
-    transition: all 0.3s ease;
+    transition: all 0.2s;
 }
 
-.graph-toggle:hover {
-    background: rgba(255, 255, 255, 0.2);
+.icon-btn-small:hover {
+    background: #f5f5f5;
 }
 
-.graph-toggle.active {
-    background: rgba(255, 255, 255, 0.3);
-    color: white;
-    border-color: rgba(255, 255, 255, 0.6);
+/* ========== Page with Sidebar ========== */
+.page.with-sidebar {
+    margin-left: 320px;
 }
 
-/* ========== Modal / Dialog ========== */
+/* ========== Header Buttons ========== */
+.page-header-buttons {
+    position: fixed;
+    top: 20px;
+    right: 30px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    z-index: 100;
+}
+
+/* Settings button on search overlay */
+.overlay-settings {
+    position: absolute;
+    top: 20px;
+    right: 30px;
+    z-index: 10;
+}
+
+.header-icon-btn {
+    width: 44px;
+    height: 44px;
+    border: 2px solid #5c32f2;
+    border-radius: 50%;
+    background: rgba(92, 50, 242, 0.1);
+    color: #5c32f2;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s;
+}
+
+.header-icon-btn:hover {
+    background: #5c32f2;
+    color: #fff;
+}
+
+.header-icon-btn.settings-icon:hover {
+    transform: rotate(45deg);
+}
+
+.header-generate-btn {
+    padding: 10px 18px !important;
+    font-size: 14px !important;
+}
+
+.header-generate-btn .icon {
+    width: 16px;
+    height: 16px;
+    margin-right: 8px;
+}
+
+/* ========== Setup Card ========== */
+.setup-card {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 24px;
+    text-align: center;
+}
+
+.setup-card h3 {
+    margin: 0 0 8px 0;
+}
+
+.setup-card p {
+    margin: 0 0 16px 0;
+}
+
+/* Setup button uses generate-button class from style.css */
+.setup-card .generate-button {
+    margin: 0;
+}
+
+.setup-card .generate-button .icon {
+    width: 16px;
+    height: 16px;
+    margin-right: 8px;
+}
+
+/* ========== Modal Styles ========== */
 .modal-overlay {
     position: fixed;
     top: 0;
@@ -146,125 +280,280 @@
 }
 
 .modal-content {
-    background: white;
-    border-radius: 12px;
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    background: #fff;
+    border-radius: 20px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
     width: 90%;
-    max-width: 500px;
+    max-width: 480px;
+    max-height: 90vh;
     overflow: hidden;
-    animation: modalFadeIn 0.3s ease;
+    animation: modalSlideIn 0.3s ease;
 }
 
-@keyframes modalFadeIn {
+.modal-content.settings-modal {
+    max-width: 420px;
+}
+
+.modal-content.upload-modal {
+    max-width: 520px;
+}
+
+.modal-content.small-modal {
+    max-width: 380px;
+}
+
+@keyframes modalSlideIn {
     from {
         opacity: 0;
-        transform: scale(0.9) translateY(-20px);
+        transform: translateY(-20px) scale(0.95);
     }
     to {
         opacity: 1;
-        transform: scale(1) translateY(0);
+        transform: translateY(0) scale(1);
     }
 }
 
 .modal-header {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-    padding: 20px;
+    background: #fff;
+    color: #333;
+    padding: 16px 20px;
     display: flex;
     justify-content: space-between;
     align-items: center;
+    border-bottom: none;
 }
 
 .modal-header h2 {
     margin: 0;
-    font-size: 22px;
-    font-weight: 600;
+    font-size: 14px;
+    font-family: 'Circular Spotify Text-Medium', 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-weight: 500;
+    color: #888;
 }
 
 .close-btn {
-    background: transparent;
+    width: 28px;
+    height: 28px;
     border: none;
-    color: white;
-    font-size: 32px;
-    cursor: pointer;
+    border-radius: 50%;
+    background: #f0f0f0;
+    color: #666;
+    font-size: 18px;
     line-height: 1;
-    padding: 0;
-    width: 32px;
-    height: 32px;
+    cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    border-radius: 50%;
-    transition: all 0.2s ease;
+    transition: all 0.2s;
 }
 
 .close-btn:hover {
-    background: rgba(255, 255, 255, 0.2);
-    transform: rotate(90deg);
+    background: #e0e0e0;
+    color: #333;
 }
 
 .modal-body {
-    padding: 30px;
+    padding: 24px;
+    overflow-y: auto;
+    max-height: calc(90vh - 80px);
 }
 
-/* Upload Sections */
-.upload-section {
-    margin-bottom: 25px;
+/* ========== Form Elements ========== */
+.form-group {
+    margin-bottom: 16px;
 }
 
-.upload-section h3 {
-    margin: 0 0 12px 0;
-    font-size: 16px;
-    color: #333;
-    font-weight: 600;
-}
-
-.upload-section input[type="file"] {
+.form-group label {
     display: block;
-    width: 100%;
-    padding: 12px;
-    border: 2px dashed #764ba2;
-    border-radius: 8px;
-    background: #f9f7ff;
-    cursor: pointer;
-    transition: all 0.3s ease;
+    font-size: 13px;
+    font-family: 'Circular Spotify Text-Medium', 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-weight: 500;
+    color: #333;
+    margin-bottom: 6px;
 }
 
-.upload-section input[type="file"]:hover {
-    background: #f0ebff;
-    border-color: #667eea;
-}
-
-.url-input {
+.form-input {
     width: 100%;
-    padding: 12px;
-    border: 2px solid #e0e0e0;
-    border-radius: 8px;
+    padding: 12px 14px;
+    border: 1px solid #e0e0e0;
+    border-radius: 12px;
     font-size: 14px;
-    margin-bottom: 12px;
-    transition: all 0.3s ease;
+    font-family: 'Circular Spotify Text-Book', 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #f8f8f8;
+    transition: all 0.2s;
+    box-sizing: border-box;
 }
 
-.url-input:focus {
+.form-input:focus {
     outline: none;
-    border-color: #764ba2;
-    box-shadow: 0 0 0 3px rgba(118, 75, 162, 0.1);
+    border-color: #5c32f2;
+    background: #fff;
+    box-shadow: 0 0 0 3px rgba(92, 50, 242, 0.1);
 }
 
-.upload-hint {
+.input-with-btn {
+    display: flex;
+    gap: 8px;
+}
+
+.input-with-btn .form-input {
+    flex: 1;
+}
+
+.hint-text {
     font-size: 12px;
+    color: #888;
+    margin-top: 4px;
+}
+
+/* ========== Buttons ========== */
+.primary-btn {
+    width: 100%;
+    padding: 14px 20px;
+    border: none;
+    border-radius: 12px;
+    background: #5c32f2;
+    color: #fff;
+    font-size: 14px;
+    font-family: 'Circular Spotify Text-Medium', 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.primary-btn:hover {
+    background: #4a27c9;
+}
+
+.primary-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.primary-btn-small {
+    padding: 10px 16px;
+    border: none;
+    border-radius: 10px;
+    background: #5c32f2;
+    color: #fff;
+    font-size: 13px;
+    font-family: 'Circular Spotify Text-Medium', 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.primary-btn-small:hover {
+    background: #4a27c9;
+}
+
+.secondary-btn {
+    width: 100%;
+    padding: 14px 20px;
+    border: 1px solid #e0e0e0;
+    border-radius: 12px;
+    background: #f8f8f8;
+    color: #333;
+    font-size: 14px;
+    font-family: 'Circular Spotify Text-Medium', 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.secondary-btn:hover {
+    background: #f0f0f0;
+    border-color: #d0d0d0;
+}
+
+.full-width {
+    width: 100%;
+}
+
+/* ========== Settings Specific ========== */
+.settings-section {
+    margin-bottom: 20px;
+}
+
+.settings-section h3 {
+    margin: 0 0 12px 0;
+    font-size: 15px;
+    font-family: 'Circular Spotify Text-Bold', 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-weight: 700;
+    color: #333;
+}
+
+.settings-divider {
+    height: 1px;
+    background: #e0e0e0;
+    margin: 20px 0;
+}
+
+.api-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    background: #f5f5f5;
+    border-radius: 8px;
+    margin-bottom: 16px;
+}
+
+.status-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #888;
+}
+
+.api-status.connected .status-dot {
+    background: #4ade80;
+}
+
+.api-status.disconnected .status-dot {
+    background: #f87171;
+}
+
+.status-text {
+    font-size: 13px;
     color: #666;
-    margin: 8px 0 0 0;
-    font-style: italic;
+}
+
+/* ========== Upload Dropzone ========== */
+.upload-dropzone {
+    border: 2px dashed #d0d0d0;
+    border-radius: 12px;
+    padding: 40px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s;
+    background: #fafafa;
+}
+
+.upload-dropzone:hover,
+.upload-dropzone.dragover {
+    border-color: var(--primary-color);
+    background: rgba(92, 50, 242, 0.05);
+}
+
+.upload-dropzone svg {
+    color: #888;
+    margin-bottom: 12px;
+}
+
+.upload-dropzone p {
+    margin: 0 0 4px 0;
+    font-size: 15px;
+    color: #333;
 }
 
 .upload-divider {
     text-align: center;
-    margin: 25px 0;
+    margin: 20px 0;
     position: relative;
-    color: #999;
+    color: #888;
+    font-size: 13px;
     font-weight: 600;
-    font-size: 14px;
 }
 
 .upload-divider::before,
@@ -277,12 +566,72 @@
     background: #e0e0e0;
 }
 
-.upload-divider::before {
-    left: 0;
+.upload-divider::before { left: 0; }
+.upload-divider::after { right: 0; }
+
+/* Upload Queue */
+.upload-queue {
+    margin-top: 16px;
 }
 
-.upload-divider::after {
-    right: 0;
+.upload-item {
+    display: flex;
+    align-items: center;
+    padding: 12px;
+    background: #f5f5f5;
+    border-radius: 8px;
+    margin-bottom: 8px;
+    gap: 12px;
+}
+
+.upload-item-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    background: var(--primary-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+}
+
+.upload-item-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.upload-item-name {
+    font-size: 14px;
+    font-weight: 500;
+    color: #333;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.upload-item-size {
+    font-size: 12px;
+    color: #888;
+}
+
+.upload-item-remove {
+    width: 28px;
+    height: 28px;
+    border: none;
+    border-radius: 50%;
+    background: transparent;
+    color: #888;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    transition: all 0.2s;
+}
+
+.upload-item-remove:hover {
+    background: rgba(248, 113, 113, 0.1);
+    color: #f87171;
 }
 
 /* ========== Notifications ========== */
@@ -298,21 +647,21 @@
 
 .notification {
     padding: 14px 20px;
-    border-radius: 8px;
-    background: white;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    border-radius: 12px;
+    background: #fff;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
     min-width: 280px;
     max-width: 400px;
     font-size: 14px;
-    font-weight: 500;
-    animation: slideIn 0.3s ease;
+    font-family: 'Circular Spotify Text-Book', 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    animation: notifSlideIn 0.3s ease;
     transition: opacity 0.3s ease;
-    border-left: 4px solid #764ba2;
+    border-left: 4px solid #5c32f2;
 }
 
-@keyframes slideIn {
+@keyframes notifSlideIn {
     from {
-        transform: translateX(400px);
+        transform: translateX(100%);
         opacity: 0;
     }
     to {
@@ -321,63 +670,45 @@
     }
 }
 
-.notification-success {
-    border-left-color: #10b981;
-    background: #f0fdf4;
-    color: #065f46;
+.notification-success { border-left-color: #4ade80; background: #f0fdf4; color: #166534; }
+.notification-error { border-left-color: #f87171; background: #fef2f2; color: #991b1b; }
+.notification-warning { border-left-color: #facc15; background: #fefce8; color: #854d0e; }
+.notification-info { border-left-color: var(--primary-color); background: #eff6ff; color: #1e40af; }
+
+/* ========== Documents Section Hidden State ========== */
+.documents-section-wrapper {
+    display: none;
 }
 
-.notification-error {
-    border-left-color: #ef4444;
-    background: #fef2f2;
-    color: #991b1b;
+.documents-section-wrapper.visible {
+    display: block;
 }
 
-.notification-warning {
-    border-left-color: #f59e0b;
-    background: #fffbeb;
-    color: #78350f;
+/* ========== Responsive ========== */
+@media (max-width: 900px) {
+    .left-sidebar {
+        width: 280px;
+    }
+    .page.with-sidebar {
+        margin-left: 280px;
+    }
 }
 
-.notification-info {
-    border-left-color: #3b82f6;
-    background: #eff6ff;
-    color: #1e40af;
-}
-
-/* ========== Responsive Design ========== */
 @media (max-width: 768px) {
-    .sdk-toolbar {
-        flex-direction: column;
-        align-items: stretch;
+    .left-sidebar {
+        transform: translateX(-100%);
     }
-
-    .toolbar-section {
-        width: 100%;
-        justify-content: space-between;
+    .left-sidebar.open {
+        transform: translateX(0);
     }
-
-    .collection-selector {
-        flex: 1;
+    .page.with-sidebar {
+        margin-left: 0;
     }
-
-    .mode-option {
-        flex: 1;
-        text-align: center;
-    }
-
     .modal-content {
         width: 95%;
         margin: 10px;
     }
-
-    .notification-container {
-        right: 10px;
-        left: 10px;
-    }
-
-    .notification {
-        min-width: auto;
-        max-width: none;
+    .page-header-buttons {
+        right: 16px;
     }
 }

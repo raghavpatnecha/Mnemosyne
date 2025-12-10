@@ -123,9 +123,7 @@ describe('DocumentsResource', () => {
 
       global.fetch = vi.fn().mockResolvedValue(createMockResponse(mockResponse));
 
-      const result = await client.documents.list({
-        collection_id: 'coll_123',
-      });
+      const result = await client.documents.list('coll_123');
 
       expect(result).toEqual(mockResponse);
       expect(global.fetch).toHaveBeenCalledWith(
@@ -137,7 +135,7 @@ describe('DocumentsResource', () => {
     it('should list documents with status filter', async () => {
       global.fetch = vi.fn().mockResolvedValue(createMockResponse({ data: [], total: 0 }));
 
-      await client.documents.list({
+      await client.documents.list('coll_123', {
         status_filter: 'completed',
       });
 
@@ -150,7 +148,7 @@ describe('DocumentsResource', () => {
     it('should list documents with pagination', async () => {
       global.fetch = vi.fn().mockResolvedValue(createMockResponse({ data: [], total: 0 }));
 
-      await client.documents.list({
+      await client.documents.list('coll_123', {
         limit: 10,
         offset: 20,
       });

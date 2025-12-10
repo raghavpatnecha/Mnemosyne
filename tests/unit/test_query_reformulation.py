@@ -162,7 +162,7 @@ class TestQueryReformulationService:
         service.client = mock_client
         service.enabled = True
         service.cache.get_reformulated_query = Mock(
-            return_value="query1|query2|query3"
+            return_value='["query1", "query2", "query3"]'
         )
 
         result = await service.reformulate("test query", mode="multi")

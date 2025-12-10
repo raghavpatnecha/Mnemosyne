@@ -6,9 +6,14 @@ import { BaseClient } from '../base-client.js';
 import { parseSSEStream, SSEEvent } from '../streaming.js';
 import type {
   ChatRequest,
-  ChatResponse,
+  ChatCompletionResponse,
   ChatSessionResponse,
   ChatMessageResponse,
+  RetrievalConfig,
+  GenerationConfig,
+  StreamChunk,
+  ChatPreset,
+  ReasoningMode,
 } from '../types/chat.js';
 
 /**
@@ -21,48 +26,79 @@ export class ChatResource {
    * Send a chat message and stream the response
    *
    * @param params - Chat parameters
-   * @yields SSE events (delta, sources, done, error)
+   * @yields SSE events (delta, sources, usage, done, error, reasoning_step, sub_query)
    * @throws {ValidationError} Invalid message or parameters
    * @throws {APIError} Chat failed
    *
    * @example
    * ```typescript
-   * // Streaming chat
+   * // Streaming chat with preset
    * for await (const event of client.chat.chat({
    *   message: 'What are transformers?',
+   *   preset: 'research',
    *   stream: true
    * })) {
    *   if (event.type === 'delta') {
-   *     process.stdout.write(event.delta);
+   *     process.stdout.write(event.content);
    *   } else if (event.type === 'sources') {
    *     console.log('Sources:', event.sources);
-   *   } else if (event.type === 'done') {
-   *     console.log('Session ID:', event.session_id);
    *   }
    * }
    *
-   * // Non-streaming
-   * for await (const message of client.chat.chat({
-   *   message: 'What are transformers?',
-   *   stream: false
+   * // Deep reasoning mode
+   * for await (const event of client.chat.chat({
+   *   message: 'Compare RAG architectures',
+   *   reasoning_mode: 'deep',
+   *   model: 'gpt-4o'
    * })) {
-   *   console.log(message);
+   *   if (event.type === 'reasoning_step') {
+   *     console.log(`Step ${event.step}: ${event.description}`);
+   *   } else if (event.type === 'sub_query') {
+   *     console.log(`  Searching: ${event.query}`);
+   *   } else if (event.type === 'delta') {
+   *     process.stdout.write(event.content);
+   *   }
    * }
    * ```
    */
   async *chat(params: {
-    message: string;
+    message?: string;
+    messages?: Array<{ role: string; content: string }>;
     session_id?: string;
     collection_id?: string;
-    top_k?: number;
+    retrieval?: RetrievalConfig;
+    generation?: GenerationConfig;
     stream?: boolean;
-  }): AsyncGenerator<SSEEvent | string, void, unknown> {
+    /** LLM model override (e.g., 'gpt-4o', 'claude-3-opus') */
+    model?: string;
+    /** Answer style preset */
+    preset?: ChatPreset;
+    /** Reasoning mode: 'standard' (single-pass) or 'deep' (multi-step iterative) */
+    reasoning_mode?: ReasoningMode;
+    /** Temperature override (0.0-2.0) */
+    temperature?: number;
+    /** Max tokens override */
+    max_tokens?: number;
+    /** Custom instruction to append to the prompt (e.g., 'focus on security aspects', 'generate 10 MCQs') */
+    custom_instruction?: string;
+    /** Whether this is a follow-up to a previous question. When true, previous context is preserved. */
+    is_follow_up?: boolean;
+  }): AsyncGenerator<SSEEvent | StreamChunk, void, unknown> {
     const request: ChatRequest = {
       message: params.message,
+      messages: params.messages?.map(m => ({ role: m.role as 'system' | 'user' | 'assistant', content: m.content })),
       session_id: params.session_id,
       collection_id: params.collection_id,
-      top_k: params.top_k || 5,
+      retrieval: params.retrieval,
+      generation: params.generation,
       stream: params.stream !== false, // Default to true
+      model: params.model,
+      preset: params.preset ?? 'detailed',
+      reasoning_mode: params.reasoning_mode ?? 'standard',
+      temperature: params.temperature,
+      max_tokens: params.max_tokens,
+      custom_instruction: params.custom_instruction,
+      is_follow_up: params.is_follow_up ?? false,
     };
 
     if (request.stream) {
@@ -73,10 +109,69 @@ export class ChatResource {
         yield event;
       }
     } else {
-      // Non-streaming response
-      const response = await this.client.request<ChatResponse>('POST', '/chat', { json: request });
-      yield response.message;
+      // Non-streaming response - use chatComplete instead
+      const response = await this.client.request<ChatCompletionResponse>('POST', '/chat', { json: request });
+      yield { type: 'done', metadata: response.metadata } as StreamChunk;
     }
+  }
+
+  /**
+   * Send a chat message and get complete response (non-streaming)
+   *
+   * @param params - Chat parameters
+   * @returns Complete chat response with sources and metadata
+   *
+   * @example
+   * ```typescript
+   * const response = await client.chat.chatComplete({
+   *   message: 'What are transformers?',
+   *   preset: 'research',
+   *   model: 'gpt-4o'
+   * });
+   * console.log(response.response);
+   * console.log('Sources:', response.sources);
+   * ```
+   */
+  async chatComplete(params: {
+    message?: string;
+    messages?: Array<{ role: string; content: string }>;
+    session_id?: string;
+    collection_id?: string;
+    retrieval?: RetrievalConfig;
+    generation?: GenerationConfig;
+    /** LLM model override (e.g., 'gpt-4o', 'claude-3-opus') */
+    model?: string;
+    /** Answer style preset */
+    preset?: ChatPreset;
+    /** Reasoning mode: 'standard' (single-pass) or 'deep' (multi-step iterative) */
+    reasoning_mode?: ReasoningMode;
+    /** Temperature override (0.0-2.0) */
+    temperature?: number;
+    /** Max tokens override */
+    max_tokens?: number;
+    /** Custom instruction to append to the prompt (e.g., 'focus on security aspects', 'generate 10 MCQs') */
+    custom_instruction?: string;
+    /** Whether this is a follow-up to a previous question. When true, previous context is preserved. */
+    is_follow_up?: boolean;
+  }): Promise<ChatCompletionResponse> {
+    const request: ChatRequest = {
+      message: params.message,
+      messages: params.messages?.map(m => ({ role: m.role as 'system' | 'user' | 'assistant', content: m.content })),
+      session_id: params.session_id,
+      collection_id: params.collection_id,
+      retrieval: params.retrieval,
+      generation: params.generation,
+      stream: false,
+      model: params.model,
+      preset: params.preset ?? 'detailed',
+      reasoning_mode: params.reasoning_mode ?? 'standard',
+      temperature: params.temperature,
+      max_tokens: params.max_tokens,
+      custom_instruction: params.custom_instruction,
+      is_follow_up: params.is_follow_up ?? false,
+    };
+
+    return this.client.request<ChatCompletionResponse>('POST', '/chat', { json: request });
   }
 
   /**

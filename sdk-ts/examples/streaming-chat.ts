@@ -27,13 +27,15 @@ async function streamingChatExample() {
   console.log('Question: "What is Retrieval-Augmented Generation?"\n');
   console.log('Answer: ');
 
-  for await (const chunk of client.chat.chat({
+  for await (const event of client.chat.chat({
     message: 'What is Retrieval-Augmented Generation?',
     collection_id: COLLECTION_ID,
     stream: true,
-    top_k: 5,
+    retrieval: { top_k: 5 },
   })) {
-    process.stdout.write(chunk);
+    if (event.type === 'delta') {
+      process.stdout.write(event.delta ?? '');
+    }
   }
 
   console.log('\n');
@@ -55,20 +57,19 @@ async function multiTurnConversation() {
     console.log(`\nQ: ${question}`);
     console.log('A: ');
 
-    const chunks: string[] = [];
-
-    for await (const chunk of client.chat.chat({
+    for await (const event of client.chat.chat({
       message: question,
       collection_id: COLLECTION_ID,
       session_id: sessionId,
       stream: true,
     })) {
-      process.stdout.write(chunk);
-      chunks.push(chunk);
+      if (event.type === 'delta') {
+        process.stdout.write(event.delta ?? '');
+      } else if (event.type === 'done') {
+        sessionId = event.session_id;
+      }
     }
 
-    // Extract session ID from response metadata (if available)
-    // Note: In actual implementation, you'd need to handle session ID extraction
     console.log('\n');
   }
 }
@@ -100,7 +101,7 @@ async function sessionManagement() {
     // Delete session
     console.log('\n\nDeleting session...');
     await client.chat.deleteSession(latestSession.id);
-    console.log('✓ Session deleted');
+    console.log('Session deleted successfully');
   }
 }
 
@@ -115,32 +116,32 @@ async function streamingVsNonStreaming() {
   console.log('A: ');
   const streamStart = Date.now();
 
-  for await (const chunk of client.chat.chat({
+  for await (const event of client.chat.chat({
     message: question,
     stream: true,
   })) {
-    process.stdout.write(chunk);
+    if (event.type === 'delta') {
+      process.stdout.write(event.delta ?? '');
+    }
   }
 
   const streamTime = Date.now() - streamStart;
   console.log(`\n(Time to first token: ~instant, Total: ${streamTime}ms)`);
 
-  // Non-streaming mode
+  // Non-streaming mode (use chatComplete for simpler API)
   console.log('\nNon-Streaming Mode:');
   console.log('A: ');
   const nonStreamStart = Date.now();
 
-  for await (const response of client.chat.chat({
+  const response = await client.chat.chatComplete({
     message: question,
-    stream: false,
-  })) {
-    console.log(response);
-  }
+  });
+  console.log(response.response);
 
   const nonStreamTime = Date.now() - nonStreamStart;
   console.log(`(Time: ${nonStreamTime}ms)`);
 
-  console.log('\n📊 Streaming provides better UX with instant feedback!');
+  console.log('\nStreaming provides better UX with instant feedback!');
 }
 
 async function main() {

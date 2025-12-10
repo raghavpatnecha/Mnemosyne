@@ -145,7 +145,7 @@ class TestChunkSearch:
 
         hierarchical_service.db.query.return_value.join.return_value.filter.return_value.order_by.return_value.limit.return_value.all.return_value = mock_results
 
-        chunks = hierarchical_service._search_chunks_in_documents(
+        chunks = hierarchical_service._search_chunks_semantic(
             query_embedding=query_embedding,
             document_ids=document_ids,
             user_id=user_id,
@@ -166,7 +166,7 @@ class TestChunkSearch:
         mock_results = []
         hierarchical_service.db.query.return_value.join.return_value.filter.return_value.order_by.return_value.limit.return_value.all.return_value = mock_results
 
-        hierarchical_service._search_chunks_in_documents(
+        hierarchical_service._search_chunks_semantic(
             query_embedding=query_embedding,
             document_ids=document_ids,
             user_id=user_id,

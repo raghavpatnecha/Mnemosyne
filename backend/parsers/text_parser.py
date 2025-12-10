@@ -18,9 +18,11 @@ class TextParser:
 
     def can_parse(self, content_type: str) -> bool:
         """Check if this parser can handle the content type"""
+        if not content_type:
+            return False
         return content_type in self.SUPPORTED_FORMATS or content_type.startswith("text/")
 
-    def parse(self, file_path: str) -> Dict[str, Any]:
+    async def parse(self, file_path: str) -> Dict[str, Any]:
         """
         Parse text file and extract content
 

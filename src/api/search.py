@@ -35,9 +35,85 @@ def decode_query(query: str) -> str:
     return ' '.join(decoded_parts)
 
 
+def _generate_metadata_from_sources(sources: list, query: str) -> dict:
+    """
+    Generate metadata from SourceReference objects returned by chat stream.
+
+    Args:
+        sources: List of SourceReference objects from chat stream
+        query: Original query string
+
+    Returns:
+        Dict with sources, follow-ups, and confidence for frontend display
+    """
+    # Build source list for frontend
+    formatted_sources = []
+    seen_docs = set()
+
+    for source in sources:
+        doc_id = str(source.document_id) if source.document_id else ""
+        if doc_id and doc_id not in seen_docs:
+            seen_docs.add(doc_id)
+            formatted_sources.append({
+                'title': source.title or source.filename or "Unknown",
+                'url': f"/api/documents/{doc_id}",
+                'filename': source.filename,
+                'relevance': round(source.score, 3) if source.score else 0.0
+            })
+
+    # Limit to top 5 sources
+    formatted_sources = formatted_sources[:5]
+
+    # Generate follow-up questions (mode unknown, use generic)
+    follow_ups = _generate_follow_up_questions(query, "hybrid")
+
+    # Calculate confidence from source scores
+    confidence = _calculate_confidence_from_scores(sources)
+
+    return {
+        'images': [],  # Images not available in SourceReference
+        'sources': formatted_sources,
+        'followUps': follow_ups,
+        'confidence': confidence,
+        'mode': 'hybrid',  # Backend uses hybrid by default
+        'total_results': len(sources),
+        'graph_enhanced': True  # Backend enables graph by default
+    }
+
+
+def _calculate_confidence_from_scores(sources: list) -> float:
+    """
+    Calculate confidence score from SourceReference scores.
+
+    Args:
+        sources: List of SourceReference objects
+
+    Returns:
+        Confidence score between 0.0 and 1.0
+    """
+    if not sources:
+        return 0.0
+
+    # Average the top 3 scores
+    top_scores = [s.score for s in sources[:3] if s.score is not None]
+
+    if not top_scores:
+        return 0.5  # Default medium confidence
+
+    avg_score = sum(top_scores) / len(top_scores)
+
+    # Normalize to 0-1 range
+    confidence = min(1.0, max(0.0, avg_score))
+
+    return round(confidence, 2)
+
+
 def _extract_rich_metadata(retrieval_results, query: str) -> dict:
     """
     Extract rich metadata from retrieval results for frontend display.
+
+    NOTE: This function is kept for backward compatibility with search_documents().
+    The stream_response() function now uses _generate_metadata_from_sources() instead.
 
     Extracts:
     - Images from document metadata
@@ -185,56 +261,105 @@ def _calculate_confidence(results: list) -> float:
     return round(confidence, 2)
 
 
-async def stream_response(query: str, collection_id: str = None,
-                         session_id: str = None, mode: str = None) -> AsyncGenerator[str, None]:
+async def stream_response(
+    query: str,
+    collection_id: str = None,
+    session_id: str = None,
+    mode: str = None,
+    preset: str = None,
+    reasoning_mode: str = None,
+    model: str = None,
+    temperature: float = None,
+    max_tokens: int = None,
+    custom_instruction: str = None,
+    is_follow_up: bool = False
+) -> AsyncGenerator[str, None]:
     """
-    Generate streaming chat response with rich metadata using Mnemosyne SDK.
+    Generate streaming chat response using Mnemosyne SDK.
 
-    This function showcases the full SDK capabilities by:
-    1. Retrieving rich metadata (images, sources, context)
-    2. Streaming LLM-generated chat response
-    3. Sending structured JSON with images, sources, and follow-ups
+    The chat endpoint already performs retrieval internally with optimal defaults
+    (hybrid mode, rerank=True, enable_graph=True, hierarchical=True, expand_context=True).
+    Sources are streamed as part of the chat response.
 
     Args:
         query: Search query
         collection_id: Optional collection ID to filter results
         session_id: Optional session ID for multi-turn conversations
-        mode: Search mode (hybrid, semantic, keyword, hierarchical, graph)
+        mode: Search mode (hybrid, semantic, keyword, hierarchical, graph) - unused, backend uses optimal defaults
+        preset: Answer style preset (concise, detailed, research, technical, creative, qna)
+        reasoning_mode: Reasoning mode (standard, deep)
+        model: LLM model to use (any LiteLLM-compatible model)
+        temperature: Override temperature (0.0-1.0)
+        max_tokens: Override max tokens for response
+        custom_instruction: Custom instruction for additional guidance
+        is_follow_up: Whether this is a follow-up question
     """
     if not sdk_client or not config.SDK.API_KEY:
         yield 'data: {"error": "SDK not configured. Please set MNEMOSYNE_API_KEY"}\n\n'
         return
 
     try:
-        # Use configured search mode or default
-        search_mode = mode or config.SEARCH.DEFAULT_MODE
+        # Use config defaults if not specified
+        chat_preset = preset or config.CHAT.PRESET
+        chat_reasoning = reasoning_mode or config.CHAT.REASONING_MODE
+        chat_model = model or config.CHAT.MODEL or None  # Empty string -> None
+        chat_temperature = temperature if temperature is not None else config.CHAT.TEMPERATURE
+        chat_max_tokens = max_tokens if max_tokens is not None else config.CHAT.MAX_TOKENS
 
-        # STEP 1: Get retrieval results with rich metadata
-        retrieval_results = sdk_client.retrievals.retrieve(
-            query=query,
-            mode=search_mode,
-            collection_id=collection_id,
-            top_k=config.SEARCH.TOP_K,
-            enable_graph=config.SEARCH.ENABLE_GRAPH,
-            rerank=config.SEARCH.RERANK
-        )
+        # Collect sources from the stream for metadata generation
+        collected_sources = []
 
-        # STEP 2: Stream chat response from SDK
+        # Stream chat response from SDK - backend handles retrieval with optimal defaults
         for chunk in sdk_client.chat.chat(
             message=query,
             collection_id=collection_id,
             session_id=session_id,
-            top_k=config.CHAT.TOP_K,
-            stream=True
+            stream=True,
+            preset=chat_preset,
+            reasoning_mode=chat_reasoning,
+            model=chat_model,
+            temperature=chat_temperature,
+            max_tokens=chat_max_tokens,
+            custom_instruction=custom_instruction,
+            is_follow_up=is_follow_up
         ):
-            if isinstance(chunk, str):
-                # Stream text chunks
-                if chunk.strip():
-                    yield f'data: {chunk}\n\n'
-                    await asyncio.sleep(0.01)  # Small delay for smooth streaming
+            # Handle StreamChunk objects from SDK
+            if chunk.type == "delta" and chunk.content:
+                yield f'data: {chunk.content}\n\n'
+                await asyncio.sleep(0.01)  # Small delay for smooth streaming
+            elif chunk.type == "reasoning_step":
+                # Deep reasoning mode: send reasoning step info
+                step_data = {
+                    "type": "reasoning_step",
+                    "step": chunk.step,
+                    "description": chunk.description
+                }
+                yield f'data: {json.dumps(step_data)}\n\n'
+            elif chunk.type == "sub_query":
+                # Deep reasoning mode: send sub-query info
+                sub_query_data = {
+                    "type": "sub_query",
+                    "query": chunk.query
+                }
+                yield f'data: {json.dumps(sub_query_data)}\n\n'
+            elif chunk.type == "sources" and chunk.sources:
+                # Collect sources for metadata generation
+                collected_sources = chunk.sources
+                # Also send sources to frontend
+                sources_data = [
+                    {
+                        "document_id": s.document_id,
+                        "title": s.title,
+                        "filename": s.filename,
+                        "chunk_index": s.chunk_index,
+                        "score": s.score
+                    }
+                    for s in chunk.sources
+                ]
+                yield f'data: {json.dumps({"sources": sources_data})}\n\n'
 
-        # STEP 3: Extract and send rich metadata
-        metadata = _extract_rich_metadata(retrieval_results, query)
+        # Generate metadata from collected sources
+        metadata = _generate_metadata_from_sources(collected_sources, query)
         yield f'data: {json.dumps(metadata)}\n\n'
 
         # Send end marker
@@ -324,13 +449,19 @@ def reinitialize_client(api_key: str = None):
     """Reinitialize SDK client with new API key"""
     global sdk_client
     try:
+        key = api_key or config.SDK.API_KEY
+        print(f"Reinitializing SDK client with key: {key[:10] if key else 'None'}...")
+        print(f"  Base URL: {config.SDK.BASE_URL}")
+        print(f"  Timeout: {config.SDK.TIMEOUT}s")
+
         sdk_client = Client(
-            api_key=api_key or config.SDK.API_KEY,
+            api_key=key,
             base_url=config.SDK.BASE_URL,
             timeout=config.SDK.TIMEOUT,
             max_retries=config.SDK.MAX_RETRIES
         )
+        print(f"SDK client reinitialized successfully")
         return True
     except Exception as e:
-        print(f"Failed to reinitialize client: {e}")
+        print(f"Failed to reinitialize client: {type(e).__name__}: {e}")
         return False

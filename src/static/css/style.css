@@ -213,24 +213,25 @@ h2 {
 /* Layout Components */
 #content-wrapper {
   display: none;
-  justify-content: space-between;
-  max-width: 800px;
+  flex-direction: row;
+  max-width: 1100px;
   margin: 0 auto;
-  gap: 20px;
+  gap: 40px;
   background: white;
-  padding-bottom: 80px;
+  padding: 0 40px 80px 40px;
+  justify-content: center;
 }
 
 #main-content {
-  flex: 1;
-  max-width: calc(100% - 50px);
+  flex: 0 1 650px;
+  min-width: 0;
 }
 
 #sidebar {
-  position: absolute;
-  right: 0;
-  top: 100px;
-  width: 321px;
+  flex: 0 0 280px;
+  position: sticky;
+  top: 20px;
+  height: fit-content;
 }
 
 /* Custom Components */
@@ -239,6 +240,93 @@ h2 {
   font-size: var(--font-size-s);
   font-style: normal;
   font-weight: 400;
+}
+
+/* Markdown Styles for Answer Container */
+#answer-container strong,
+.answer-container strong {
+  font-weight: 700;
+  color: #2e2c35;
+}
+
+/* Section headers (bold text ending with colon) get extra styling */
+#answer-container p strong:first-child,
+.answer-container p strong:first-child {
+  display: block;
+  margin-top: 1em;
+  margin-bottom: 0.3em;
+  font-size: 1.05em;
+  color: #1a1a1a;
+}
+
+#answer-container em,
+.answer-container em {
+  font-style: italic;
+}
+
+#answer-container code:not(pre code),
+.answer-container code:not(pre code) {
+  background-color: #f5f5f5;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
+  font-size: 0.9em;
+  color: #e83e8c;
+}
+
+#answer-container blockquote,
+.answer-container blockquote {
+  border-left: 4px solid var(--primary-color, #5c32f2);
+  margin: 1em 0;
+  padding: 0.5em 1em;
+  background-color: #f9f9f9;
+  color: #555;
+}
+
+#answer-container h1,
+#answer-container h2,
+#answer-container h3,
+.answer-container h1,
+.answer-container h2,
+.answer-container h3 {
+  font-family: var(--font-family-circular_spotify_text-bold);
+  color: #2e2c35;
+  margin: 1em 0 0.5em 0;
+}
+
+#answer-container h1,
+.answer-container h1 {
+  font-size: 1.5em;
+}
+
+#answer-container h2,
+.answer-container h2 {
+  font-size: 1.3em;
+}
+
+#answer-container h3,
+.answer-container h3 {
+  font-size: 1.1em;
+}
+
+#answer-container p,
+.answer-container p {
+  margin: 0.5em 0;
+  line-height: 1.6;
+}
+
+#answer-container ul,
+#answer-container ol,
+.answer-container ul,
+.answer-container ol {
+  margin: 0.5em 0;
+  padding-left: 1.5em;
+}
+
+#answer-container li,
+.answer-container li {
+  margin: 0.25em 0;
+  line-height: 1.5;
 }
 
 /* Source Component */
@@ -522,7 +610,10 @@ position: fixed;
     border: transparent 1px solid;
     border-radius: 10px;
     width: 63%;
-    display: block;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
     animation-name: glass;
     animation-duration: 2s;
     animation-fill-mode: forwards;
@@ -622,6 +713,18 @@ position: fixed;
 }
 
 /* Responsive Design */
+@media (max-width: 900px) {
+  #content-wrapper {
+    flex-direction: column;
+  }
+
+  #sidebar {
+    max-width: 100%;
+    min-width: auto;
+    position: static;
+  }
+}
+
 @media (max-width: 768px) {
   .query-section {
     flex-direction: column;
@@ -686,7 +789,10 @@ position: fixed;
   border: transparent 1px solid;
   border-radius: 10px;
   width: 63%;
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
   animation-name: glass;
   animation-duration: 2s;
   animation-fill-mode: forwards;
@@ -708,7 +814,10 @@ position: fixed;
 
 /* Query Related Styles */
 .query-container {
-  text-align: end;
+  text-align: center;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 20px 40px;
 }
 
 .query-section {
@@ -786,10 +895,7 @@ position: fixed;
 
 /* Source Components */
 .sources-section {
-  width: 300px;
-  position: absolute;
-  right: 0;
-  width: 321px;
+  width: 100%;
 }
 
 .site-name,

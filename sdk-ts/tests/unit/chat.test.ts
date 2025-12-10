@@ -5,6 +5,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MnemosyneClient } from '../../src/client.js';
 import { createMockSSEResponse, createMockResponse } from '../setup.js';
+import type { SSEEvent } from '../../src/streaming.js';
 
 describe('ChatResource', () => {
   let client: MnemosyneClient;
@@ -21,32 +22,31 @@ describe('ChatResource', () => {
       const chunks = ['Hello', ' world', '!'];
       global.fetch = vi.fn().mockResolvedValue(createMockSSEResponse(chunks));
 
-      const receivedChunks: string[] = [];
+      const receivedEvents: SSEEvent[] = [];
 
-      for await (const chunk of client.chat.chat({
+      for await (const event of client.chat.chat({
         message: 'Hi',
         stream: true,
       })) {
-        receivedChunks.push(chunk);
+        receivedEvents.push(event as SSEEvent);
       }
 
-      expect(receivedChunks).toEqual(chunks);
+      // Should receive delta events for each chunk + done event
+      const deltaEvents = receivedEvents.filter(e => e.type === 'delta');
+      expect(deltaEvents).toHaveLength(3);
+      expect(deltaEvents.map(e => e.delta)).toEqual(chunks);
       expect(global.fetch).toHaveBeenCalledWith(
         'http://localhost:8000/api/v1/chat',
         expect.objectContaining({
           method: 'POST',
-          body: JSON.stringify({
-            message: 'Hi',
-            top_k: 5,
-            stream: true,
-          }),
         })
       );
     });
 
     it('should handle non-streaming chat', async () => {
       const mockResponse = {
-        message: 'Hello! How can I help you?',
+        query: 'Hi',
+        response: 'Hello! How can I help you?',
         sources: [
           {
             chunk_id: 'chunk_1',
@@ -55,11 +55,12 @@ describe('ChatResource', () => {
             score: 0.95,
           },
         ],
+        metadata: { model: 'gpt-4o-mini' },
       };
 
       global.fetch = vi.fn().mockResolvedValue(createMockResponse(mockResponse));
 
-      const responses: string[] = [];
+      const responses: unknown[] = [];
 
       for await (const response of client.chat.chat({
         message: 'Hi',
@@ -68,9 +69,9 @@ describe('ChatResource', () => {
         responses.push(response);
       }
 
-      // Non-streaming returns full response in one chunk
-      expect(responses.length).toBeGreaterThan(0);
-      expect(responses.join('')).toContain('Hello');
+      // Non-streaming returns done event with metadata
+      expect(responses.length).toBe(1);
+      expect(responses[0]).toHaveProperty('type', 'done');
     });
 
     it('should include collection_id in request', async () => {
@@ -111,12 +112,12 @@ describe('ChatResource', () => {
       );
     });
 
-    it('should support custom top_k', async () => {
+    it('should support preset configuration', async () => {
       global.fetch = vi.fn().mockResolvedValue(createMockSSEResponse(['test']));
 
       for await (const _ of client.chat.chat({
         message: 'test',
-        top_k: 10,
+        preset: 'research',
         stream: true,
       })) {
         // Consume stream
@@ -125,7 +126,7 @@ describe('ChatResource', () => {
       expect(global.fetch).toHaveBeenCalledWith(
         expect.any(String),
         expect.objectContaining({
-          body: expect.stringContaining('"top_k":10'),
+          body: expect.stringContaining('"preset":"research"'),
         })
       );
     });

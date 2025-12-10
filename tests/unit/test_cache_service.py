@@ -23,15 +23,15 @@ class TestCacheService:
     """Test suite for CacheService"""
 
     @patch('backend.services.cache_service.settings')
-    @patch('backend.services.cache_service.redis')
-    def test_init_enabled(self, mock_redis_module, mock_settings):
+    @patch('redis.from_url')
+    def test_init_enabled(self, mock_from_url, mock_settings):
         """Test initialization with caching enabled"""
         mock_settings.CACHE_ENABLED = True
         mock_settings.REDIS_URL = "redis://localhost:6379/0"
 
         mock_redis_client = MagicMock()
         mock_redis_client.ping.return_value = True
-        mock_redis_module.from_url.return_value = mock_redis_client
+        mock_from_url.return_value = mock_redis_client
 
         service = CacheService()
 
@@ -50,15 +50,15 @@ class TestCacheService:
         assert service.redis is None
 
     @patch('backend.services.cache_service.settings')
-    @patch('backend.services.cache_service.redis')
-    def test_init_connection_failure(self, mock_redis_module, mock_settings):
+    @patch('redis.from_url')
+    def test_init_connection_failure(self, mock_from_url, mock_settings):
         """Test initialization with Redis connection failure"""
         mock_settings.CACHE_ENABLED = True
         mock_settings.REDIS_URL = "redis://localhost:6379/0"
 
         mock_redis_client = MagicMock()
         mock_redis_client.ping.side_effect = Exception("Connection failed")
-        mock_redis_module.from_url.return_value = mock_redis_client
+        mock_from_url.return_value = mock_redis_client
 
         service = CacheService()
 

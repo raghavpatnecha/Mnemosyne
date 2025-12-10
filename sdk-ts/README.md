@@ -61,7 +61,11 @@ for await (const chunk of client.chat.chat({
   collection_id: collection.id,
   stream: true,
 })) {
-  process.stdout.write(chunk);
+  if (chunk.type === 'delta' && chunk.content) {
+    process.stdout.write(chunk.content);
+  } else if (chunk.type === 'sources') {
+    console.log('\nSources:', chunk.sources?.map(s => s.title));
+  }
 }
 ```
 
@@ -83,6 +87,46 @@ const client = new MnemosyneClient({
   timeout: 60000,                      // Optional, default: 60 seconds
   maxRetries: 3,                       // Optional, default: 3
 });
+```
+
+### Timeout and Retry Configuration
+
+The SDK includes built-in timeout and retry handling:
+
+```typescript
+// Configure timeouts and retries
+const client = new MnemosyneClient({
+  apiKey: 'mn_your_api_key',
+  timeout: 120000,  // 2 minutes for long operations
+  maxRetries: 5,    // More retries for unreliable networks
+});
+```
+
+**Timeout Behavior:**
+- Default: 60 seconds (60000ms)
+- Applies to all HTTP requests
+- Throws `APIError` on timeout
+
+**Retry Behavior:**
+- Default: 3 retries
+- Uses exponential backoff (1s, 2s, 4s, ...)
+- Retries on: network errors, 5xx errors, rate limits (429)
+- Does NOT retry: 4xx errors (except 429), validation errors
+
+**Rate Limiting:**
+The SDK automatically handles rate limits (HTTP 429) with exponential backoff:
+
+```typescript
+import { RateLimitError } from '@mnemosyne/sdk';
+
+try {
+  const results = await client.retrievals.retrieve({ query: 'test' });
+} catch (error) {
+  if (error instanceof RateLimitError) {
+    // SDK already retried with backoff - this means retries exhausted
+    console.log('Rate limit exceeded after all retries');
+  }
+}
 ```
 
 ## API Reference
@@ -202,7 +246,7 @@ results.results.forEach((result) => {
   console.log(`Content: ${result.content}`);
   console.log(`Document: ${result.document.title}`);
 });
-console.log(`Processing time: ${results.processing_time_ms}ms`);
+console.log(`Total results: ${results.total_results}`);
 ```
 
 ### Chat
@@ -212,19 +256,23 @@ console.log(`Processing time: ${results.processing_time_ms}ms`);
 for await (const chunk of client.chat.chat({
   message: 'What are the main topics?',
   collection_id: 'coll_123',
+  retrieval: { top_k: 5 },
   stream: true,
-  top_k: 5,
 })) {
-  process.stdout.write(chunk);
+  if (chunk.type === 'delta' && chunk.content) {
+    process.stdout.write(chunk.content);
+  } else if (chunk.type === 'sources') {
+    console.log('\nSources:', chunk.sources?.map(s => s.title));
+  }
 }
 
 // Non-streaming chat
-for await (const response of client.chat.chat({
+const response = await client.chat.chatComplete({
   message: 'Summarize the key points',
-  stream: false,
-})) {
-  console.log(response);
-}
+  collection_id: 'coll_123',
+});
+console.log(response.response);
+console.log('Sources:', response.sources);
 
 // Multi-turn conversation
 let sessionId: string | undefined;
@@ -235,9 +283,13 @@ for (const question of questions) {
     session_id: sessionId,
     stream: true,
   })) {
-    process.stdout.write(chunk);
+    if (chunk.type === 'delta' && chunk.content) {
+      process.stdout.write(chunk.content);
+    } else if (chunk.type === 'done' && chunk.metadata) {
+      sessionId = chunk.metadata.session_id;  // Extract for next turn
+    }
   }
-  // Extract session_id from response metadata for next turn
+  console.log();  // Newline between messages
 }
 
 // Session management
@@ -245,6 +297,144 @@ const sessions = await client.chat.listSessions({ limit: 10 });
 const messages = await client.chat.getSessionMessages('session_123');
 await client.chat.deleteSession('session_123');
 ```
+
+### Answer Style Presets
+
+Control response style with predefined presets:
+
+```typescript
+// Concise answers for quick lookups
+for await (const chunk of client.chat.chat({
+  message: 'What is RAG?',
+  preset: 'concise',
+})) {
+  if (chunk.type === 'delta') {
+    process.stdout.write(chunk.content || '');
+  }
+}
+
+// Research-grade response with thorough analysis
+for await (const chunk of client.chat.chat({
+  message: 'Compare vector databases',
+  preset: 'research',
+  model: 'gpt-4o',  // Use more capable model
+})) {
+  if (chunk.type === 'delta') {
+    process.stdout.write(chunk.content || '');
+  }
+}
+
+// Technical precise answer with exact details
+for await (const chunk of client.chat.chat({
+  message: 'How to implement cosine similarity?',
+  preset: 'technical',
+})) {
+  if (chunk.type === 'delta') {
+    process.stdout.write(chunk.content || '');
+  }
+}
+```
+
+**Available Presets**:
+| Preset | Temperature | Max Tokens | Best For |
+|--------|-------------|------------|----------|
+| `concise` | 0.3 | 500 | Quick lookups, simple questions |
+| `detailed` | 0.5 | 2000 | General explanations (default) |
+| `research` | 0.2 | 4000 | Academic analysis, thorough coverage |
+| `technical` | 0.1 | 3000 | Precise, detail-oriented answers |
+| `creative` | 0.8 | 2000 | Brainstorming, exploratory answers |
+| `qna` | 0.4 | 4000 | Question generation (MCQs, quizzes, study materials) |
+
+### Custom Instructions
+
+Add custom guidance to your prompts for specialized tasks:
+
+```typescript
+// Generate MCQs from document content
+for await (const chunk of client.chat.chat({
+  message: 'Create questions about machine learning',
+  preset: 'qna',
+  custom_instruction: 'Generate 10 multiple choice questions with 4 options each. Mark the correct answer.',
+})) {
+  if (chunk.type === 'delta') {
+    process.stdout.write(chunk.content || '');
+  }
+}
+
+// Focus on specific aspects
+for await (const chunk of client.chat.chat({
+  message: 'Analyze this codebase',
+  preset: 'technical',
+  custom_instruction: 'Focus on security vulnerabilities and potential exploits',
+})) {
+  if (chunk.type === 'delta') {
+    process.stdout.write(chunk.content || '');
+  }
+}
+```
+
+### Follow-up Questions
+
+Use `is_follow_up: true` to preserve context from previous exchanges:
+
+```typescript
+// Initial question
+let sessionId: string | undefined;
+for await (const chunk of client.chat.chat({
+  message: 'What is RAG?',
+})) {
+  if (chunk.type === 'delta') {
+    process.stdout.write(chunk.content || '');
+  } else if (chunk.type === 'done' && chunk.metadata) {
+    sessionId = chunk.metadata.session_id;
+  }
+}
+console.log();
+
+// Follow-up question with context preservation
+for await (const chunk of client.chat.chat({
+  message: 'How does it compare to fine-tuning?',
+  session_id: sessionId,
+  is_follow_up: true,  // Preserves context from previous exchange
+})) {
+  if (chunk.type === 'delta') {
+    process.stdout.write(chunk.content || '');
+  }
+}
+```
+
+### Deep Reasoning Mode
+
+Multi-step iterative reasoning for complex questions:
+
+```typescript
+// Deep reasoning decomposes queries and iteratively retrieves context
+for await (const chunk of client.chat.chat({
+  message: 'Compare RAG architectures and recommend the best for legal documents',
+  preset: 'research',
+  reasoning_mode: 'deep',
+  model: 'gpt-4o',
+})) {
+  if (chunk.type === 'reasoning_step') {
+    console.log(`\n[Step ${chunk.step}] ${chunk.description}`);
+  } else if (chunk.type === 'sub_query') {
+    console.log(`  Searching: ${chunk.query}`);
+  } else if (chunk.type === 'delta') {
+    process.stdout.write(chunk.content || '');
+  } else if (chunk.type === 'sources') {
+    console.log(`\nSources: ${chunk.sources?.length} documents`);
+  }
+}
+```
+
+**Stream Chunk Types**:
+- `delta`: Incremental text content
+- `sources`: Retrieved source documents
+- `reasoning_step`: Deep reasoning progress (step number + description)
+- `sub_query`: Sub-query being processed during deep reasoning
+- `usage`: Token usage statistics
+- `done`: Stream completion with metadata
+- `error`: Error message if something fails
 
 ### Authentication
 

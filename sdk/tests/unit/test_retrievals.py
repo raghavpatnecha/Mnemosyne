@@ -9,7 +9,7 @@ def test_retrieve_semantic(client, httpx_mock: HTTPXMock, mock_retrieval_respons
     """Test semantic retrieval"""
     httpx_mock.add_response(
         method="POST",
-        url="http://localhost:8000/retrievals",
+        url="http://localhost:8000/api/v1/retrievals",
         json=mock_retrieval_response,
     )
 
@@ -30,7 +30,7 @@ def test_retrieve_hybrid(client, httpx_mock: HTTPXMock, mock_retrieval_response)
     """Test hybrid retrieval"""
     httpx_mock.add_response(
         method="POST",
-        url="http://localhost:8000/retrievals",
+        url="http://localhost:8000/api/v1/retrievals",
         json=mock_retrieval_response,
     )
 
@@ -50,7 +50,7 @@ def test_retrieve_with_collection_filter(
     """Test retrieval with collection filter"""
     httpx_mock.add_response(
         method="POST",
-        url="http://localhost:8000/retrievals",
+        url="http://localhost:8000/api/v1/retrievals",
         json=mock_retrieval_response,
     )
 
@@ -68,7 +68,7 @@ def test_retrieve_with_metadata_filter(client, httpx_mock: HTTPXMock, mock_retri
     """Test retrieval with metadata filter"""
     httpx_mock.add_response(
         method="POST",
-        url="http://localhost:8000/retrievals",
+        url="http://localhost:8000/api/v1/retrievals",
         json=mock_retrieval_response,
     )
 
@@ -86,7 +86,7 @@ def test_retrieve_graph_mode(client, httpx_mock: HTTPXMock, mock_retrieval_respo
     """Test graph-based retrieval (LightRAG)"""
     httpx_mock.add_response(
         method="POST",
-        url="http://localhost:8000/retrievals",
+        url="http://localhost:8000/api/v1/retrievals",
         json=mock_retrieval_response,
     )
 
@@ -103,7 +103,7 @@ def test_retrieve_hierarchical_mode(client, httpx_mock: HTTPXMock, mock_retrieva
     """Test hierarchical retrieval"""
     httpx_mock.add_response(
         method="POST",
-        url="http://localhost:8000/retrievals",
+        url="http://localhost:8000/api/v1/retrievals",
         json=mock_retrieval_response,
     )
 

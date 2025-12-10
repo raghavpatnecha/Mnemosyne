@@ -6,6 +6,7 @@ from sqlalchemy import Column, String, Text, Integer, ForeignKey, JSON, DateTime
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
+from sqlalchemy.ext.mutable import MutableDict
 from pgvector.sqlalchemy import Vector
 import uuid
 
@@ -72,8 +73,8 @@ class Document(Base):
 
     # Processing status
     status = Column(String(50), default="pending", index=True)  # pending, processing, completed, failed
-    metadata_ = Column("metadata", JSON, default=dict)  # metadata is reserved by SQLAlchemy
-    processing_info = Column(JSON, default=dict)
+    metadata_ = Column("metadata", MutableDict.as_mutable(JSON), default=dict)  # metadata is reserved by SQLAlchemy
+    processing_info = Column(MutableDict.as_mutable(JSON), default=dict)  # MutableDict tracks in-place changes
 
     # Processing results (Week 2+)
     processed_at = Column(DateTime(timezone=True))

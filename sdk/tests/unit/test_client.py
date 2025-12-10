@@ -9,7 +9,7 @@ def test_client_initialization():
     """Test client initialization"""
     client = Client(api_key="test_key")
     assert client.api_key == "test_key"
-    assert client.base_url == "http://localhost:8000"
+    assert client.base_url == "http://localhost:8000/api/v1"
     assert client.timeout == 60.0
     assert client.max_retries == 3
     client.close()
@@ -53,7 +53,7 @@ def test_handle_error_401(client, httpx_mock: HTTPXMock):
     """Test 401 authentication error"""
     httpx_mock.add_response(
         method="GET",
-        url="http://localhost:8000/collections",
+        url="http://localhost:8000/api/v1/collections",
         status_code=401,
         json={"detail": "Invalid API key"},
     )
@@ -66,7 +66,7 @@ def test_handle_error_404(client, httpx_mock: HTTPXMock):
     """Test 404 not found error"""
     httpx_mock.add_response(
         method="GET",
-        url="http://localhost:8000/collections/123",
+        url="http://localhost:8000/api/v1/collections/123",
         status_code=404,
         json={"detail": "Collection not found"},
     )
@@ -79,7 +79,7 @@ def test_handle_error_422(client, httpx_mock: HTTPXMock):
     """Test 422 validation error"""
     httpx_mock.add_response(
         method="POST",
-        url="http://localhost:8000/collections",
+        url="http://localhost:8000/api/v1/collections",
         status_code=422,
         json={"detail": "Invalid request data"},
     )
@@ -92,7 +92,7 @@ def test_request_success(client, httpx_mock: HTTPXMock, mock_collection_response
     """Test successful request"""
     httpx_mock.add_response(
         method="GET",
-        url="http://localhost:8000/collections",
+        url="http://localhost:8000/api/v1/collections",
         json={"data": [mock_collection_response], "pagination": {}},
     )
 

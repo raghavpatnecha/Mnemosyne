@@ -82,7 +82,7 @@ async function parallelSearches() {
   results.forEach((result, i) => {
     console.log(`Query ${i + 1}: "${queries[i]}"`);
     console.log(`  Results: ${result.results.length}`);
-    console.log(`  Processing time: ${result.processing_time_ms.toFixed(2)}ms`);
+    console.log(`  Total available: ${result.total_results}`);
   });
 }
 

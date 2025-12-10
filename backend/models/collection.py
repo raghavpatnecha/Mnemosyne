@@ -6,6 +6,7 @@ from sqlalchemy import Column, String, Text, ForeignKey, JSON, DateTime, UniqueC
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
+from sqlalchemy.ext.mutable import MutableDict
 import uuid
 
 from backend.database import Base
@@ -46,8 +47,8 @@ class Collection(Base):
 
     name = Column(String(255), nullable=False)
     description = Column(Text)
-    metadata_ = Column("metadata", JSON, default=dict)  # metadata is reserved by SQLAlchemy
-    config = Column(JSON, default=dict)
+    metadata_ = Column("metadata", MutableDict.as_mutable(JSON), default=dict)  # metadata is reserved by SQLAlchemy
+    config = Column(MutableDict.as_mutable(JSON), default=dict)  # MutableDict tracks in-place changes
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

@@ -1,86 +1,320 @@
 /**
  * SDK Features Module
- * Handles collection management, document upload, and search mode selection
+ * Handles collections, documents, API key management, and uploads
  */
 
-// State management
-const SDKState = {
+// State
+const AppState = {
+    apiConfigured: false,
     currentCollection: null,
     collections: [],
-    searchMode: 'hybrid',
-    graphEnabled: true
+    documents: []
 };
 
-// API endpoints
-const API = {
-    BASE: window.location.origin,
-    COLLECTIONS: '/api/collections',
-    DOCUMENTS: '/api/documents',
-    CHAT: '/api/chat',
-    RETRIEVE: '/api/retrieve'
-};
+// API Base
+const API_BASE = window.location.origin;
 
-// ========== Collection Management ==========
+// ========== Initialization ==========
+
+async function initApp() {
+    // Check API status
+    await checkApiStatus();
+
+    // Load collections if configured
+    if (AppState.apiConfigured) {
+        await loadCollections();
+    }
+
+    // Setup event listeners
+    setupEventListeners();
+}
+
+function setupEventListeners() {
+    // Settings buttons (overlay and page header)
+    document.getElementById('overlay-settings-btn')?.addEventListener('click', openSettingsModal);
+    document.getElementById('page-settings-btn')?.addEventListener('click', openSettingsModal);
+    document.getElementById('generate-key-btn')?.addEventListener('click', openSettingsModal);
+    document.getElementById('save-api-key-btn')?.addEventListener('click', saveApiKey);
+    document.getElementById('register-btn')?.addEventListener('click', registerAndGenerateKey);
+
+    // Collections
+    document.getElementById('new-collection-btn')?.addEventListener('click', openCollectionModal);
+    document.getElementById('create-collection-btn')?.addEventListener('click', createCollection);
+
+    // Upload
+    document.getElementById('upload-doc-btn')?.addEventListener('click', openUploadModal);
+    document.getElementById('url-upload-btn')?.addEventListener('click', uploadFromUrl);
+
+    // Dropzone
+    const dropzone = document.getElementById('upload-dropzone');
+    const fileInput = document.getElementById('file-input');
+
+    if (dropzone && fileInput) {
+        dropzone.addEventListener('click', () => fileInput.click());
+        dropzone.addEventListener('dragover', handleDragOver);
+        dropzone.addEventListener('dragleave', handleDragLeave);
+        dropzone.addEventListener('drop', handleDrop);
+        fileInput.addEventListener('change', handleFileSelect);
+    }
+
+    // Modal close on overlay click
+    document.querySelectorAll('.modal-overlay').forEach(overlay => {
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) {
+                overlay.style.display = 'none';
+            }
+        });
+    });
+}
+
+// ========== API Status ==========
+
+async function checkApiStatus() {
+    try {
+        const response = await fetch(`${API_BASE}/api/setup/status`);
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        const data = await response.json();
+
+        AppState.apiConfigured = data.configured;
+        updateSetupUI(data.configured);
+        updateApiStatusUI(data.configured);
+
+        return data.configured;
+    } catch (error) {
+        console.error('Failed to check API status:', error);
+        AppState.apiConfigured = false;
+        updateSetupUI(false);
+        updateApiStatusUI(false);
+        return false;
+    }
+}
+
+function updateSetupUI(configured) {
+    const notConfigured = document.getElementById('setup-not-configured');
+    const isConfigured = document.getElementById('setup-configured');
+
+    if (notConfigured && isConfigured) {
+        notConfigured.style.display = configured ? 'none' : 'block';
+        isConfigured.style.display = configured ? 'block' : 'none';
+    }
+}
+
+function updateApiStatusUI(connected) {
+    const statusEl = document.getElementById('api-status');
+    if (statusEl) {
+        statusEl.className = `api-status ${connected ? 'connected' : 'disconnected'}`;
+        statusEl.querySelector('.status-text').textContent = connected ? 'Connected' : 'Not configured';
+    }
+}
+
+// ========== Settings Modal ==========
+
+function openSettingsModal() {
+    document.getElementById('settings-modal').style.display = 'flex';
+    checkApiStatus();
+}
+
+function closeSettingsModal() {
+    document.getElementById('settings-modal').style.display = 'none';
+}
+
+function toggleApiKeyVisibility() {
+    const input = document.getElementById('api-key-input');
+    const btn = event.target;
+
+    if (input.type === 'password') {
+        input.type = 'text';
+        btn.textContent = 'Hide';
+    } else {
+        input.type = 'password';
+        btn.textContent = 'Show';
+    }
+}
+
+async function saveApiKey() {
+    const apiKey = document.getElementById('api-key-input').value.trim();
+
+    if (!apiKey) {
+        showNotification('Please enter an API key', 'warning');
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_BASE}/api/setup/configure`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ api_key: apiKey })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            showNotification(data.error || `Failed: HTTP ${response.status}`, 'error');
+            return;
+        }
+
+        if (data.configured) {
+            showNotification('API key configured successfully!', 'success');
+            AppState.apiConfigured = true;
+            updateSetupUI(true);
+            updateApiStatusUI(true);
+            closeSettingsModal();
+
+            // Load collections and documents after configuring API key
+            try {
+                await loadCollections();
+                // If there's a current collection, also load its documents
+                if (AppState.currentCollection) {
+                    await loadDocuments(AppState.currentCollection);
+                }
+            } catch (e) {
+                console.error('Failed to load collections after config:', e);
+                showNotification('API configured, but failed to load collections. Try refreshing the page.', 'warning');
+            }
+        } else {
+            showNotification(data.error || 'Failed to configure API key', 'error');
+        }
+    } catch (error) {
+        console.error('Save API key error:', error);
+        showNotification('Failed to save API key: ' + error.message, 'error');
+    }
+}
+
+async function registerAndGenerateKey() {
+    const email = document.getElementById('register-email').value.trim();
+    const password = document.getElementById('register-password').value;
+
+    if (!email || !password) {
+        showNotification('Please enter email and password', 'warning');
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_BASE}/api/setup/register`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password })
+        });
+
+        const data = await response.json();
+
+        if (data.api_key) {
+            // Put the API key in the input box for user to see/copy
+            const apiKeyInput = document.getElementById('api-key-input');
+            apiKeyInput.value = data.api_key;
+            apiKeyInput.type = 'text'; // Show the key so user can see it
+
+            // Clear registration fields
+            document.getElementById('register-email').value = '';
+            document.getElementById('register-password').value = '';
+
+            showNotification('API key generated! Click "Save API Key" to configure.', 'success');
+        } else {
+            showNotification(data.error || 'Registration failed', 'error');
+        }
+    } catch (error) {
+        showNotification('Registration failed', 'error');
+    }
+}
+
+// ========== Collections ==========
 
 async function loadCollections() {
+    if (!AppState.apiConfigured) return;
+
     try {
-        const response = await fetch(`${API.BASE}${API.COLLECTIONS}?limit=100`);
+        const response = await fetch(`${API_BASE}/api/collections?limit=100`);
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            console.error('Error loading collections:', response.status, errorData);
+            const errorMsg = errorData.error || `Failed to load collections: HTTP ${response.status}`;
+            const errorType = errorData.type ? ` (${errorData.type})` : '';
+            showNotification(errorMsg + errorType, 'error');
+            return;
+        }
+
         const data = await response.json();
 
         if (data.error) {
             console.error('Error loading collections:', data.error);
-            showNotification('Failed to load collections', 'error');
+            showNotification(data.error, 'error');
             return;
         }
 
-        SDKState.collections = data.collections || [];
-        updateCollectionSelector();
+        AppState.collections = data.collections || [];
+        renderCollections();
 
-        // Set first collection as default if none selected
-        if (!SDKState.currentCollection && SDKState.collections.length > 0) {
-            SDKState.currentCollection = SDKState.collections[0].id;
+        // Select first collection if none selected
+        if (!AppState.currentCollection && AppState.collections.length > 0) {
+            selectCollection(AppState.collections[0].id);
         }
     } catch (error) {
-        console.error('Failed to fetch collections:', error);
-        showNotification('Failed to connect to backend', 'error');
+        console.error('Failed to load collections:', error);
+        showNotification('Failed to load collections: ' + error.message, 'error');
     }
 }
 
-function updateCollectionSelector() {
-    const selector = document.getElementById('collection-selector');
-    if (!selector) return;
+function renderCollections() {
+    const container = document.getElementById('collections-list');
+    if (!container) return;
 
-    selector.innerHTML = '<option value="">All Collections</option>';
+    // Update documents section visibility based on collections
+    updateDocumentsSectionVisibility();
 
-    SDKState.collections.forEach(collection => {
-        const option = document.createElement('option');
-        option.value = collection.id;
-        option.textContent = `${collection.name} (${collection.document_count})`;
-        if (collection.id === SDKState.currentCollection) {
-            option.selected = true;
-        }
-        selector.appendChild(option);
-    });
+    if (AppState.collections.length === 0) {
+        container.innerHTML = '<div class="empty-state">Create your first collection to start uploading your documents</div>';
+        return;
+    }
+
+    container.innerHTML = AppState.collections.map(c => `
+        <div class="collection-item ${c.id === AppState.currentCollection ? 'active' : ''}"
+             onclick="selectCollection('${c.id}')">
+            <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                <use xlink:href="#icon-folder"></use>
+            </svg>
+            <div class="item-info">
+                <div class="item-name">${escapeHtml(c.name)}</div>
+                <div class="item-meta">${c.document_count || 0} documents</div>
+            </div>
+        </div>
+    `).join('');
 }
 
-function onCollectionChange(collectionId) {
-    SDKState.currentCollection = collectionId || null;
-    showNotification(`Switched to: ${collectionId ? getCollectionName(collectionId) : 'All Collections'}`, 'success');
+async function selectCollection(collectionId) {
+    AppState.currentCollection = collectionId;
+    renderCollections();
+    await loadDocuments(collectionId);
 }
 
-function getCollectionName(collectionId) {
-    const collection = SDKState.collections.find(c => c.id === collectionId);
-    return collection ? collection.name : 'Unknown';
+function openCollectionModal() {
+    if (!AppState.apiConfigured) {
+        showNotification('Please configure your API key first', 'warning');
+        openSettingsModal();
+        return;
+    }
+    document.getElementById('collection-modal').style.display = 'flex';
+}
+
+function closeCollectionModal() {
+    document.getElementById('collection-modal').style.display = 'none';
+    document.getElementById('collection-name').value = '';
+    document.getElementById('collection-desc').value = '';
 }
 
 async function createCollection() {
-    const name = prompt('Enter collection name:');
-    if (!name) return;
+    const name = document.getElementById('collection-name').value.trim();
+    const description = document.getElementById('collection-desc').value.trim();
 
-    const description = prompt('Enter collection description (optional):');
+    if (!name) {
+        showNotification('Please enter a collection name', 'warning');
+        return;
+    }
 
     try {
-        const response = await fetch(`${API.BASE}${API.COLLECTIONS}`, {
+        const response = await fetch(`${API_BASE}/api/collections`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ name, description })
@@ -89,227 +323,257 @@ async function createCollection() {
         const data = await response.json();
 
         if (data.error) {
-            showNotification(`Error: ${data.error}`, 'error');
+            showNotification(data.error, 'error');
             return;
         }
 
-        showNotification(`Collection "${name}" created successfully!`, 'success');
+        showNotification(`Collection "${name}" created!`, 'success');
+        closeCollectionModal();
         await loadCollections();
-        SDKState.currentCollection = data.id;
-        updateCollectionSelector();
+        selectCollection(data.id);
     } catch (error) {
-        console.error('Failed to create collection:', error);
         showNotification('Failed to create collection', 'error');
     }
 }
 
-async function deleteCurrentCollection() {
-    if (!SDKState.currentCollection) {
-        showNotification('Please select a collection first', 'warning');
-        return;
-    }
+// ========== Documents ==========
 
-    const collectionName = getCollectionName(SDKState.currentCollection);
-    if (!confirm(`Are you sure you want to delete "${collectionName}"?`)) {
+async function loadDocuments(collectionId) {
+    if (!collectionId) {
+        renderDocuments([]);
         return;
     }
 
     try {
-        const response = await fetch(`${API.BASE}${API.COLLECTIONS}/${SDKState.currentCollection}`, {
-            method: 'DELETE'
-        });
-
+        const response = await fetch(`${API_BASE}/api/documents?collection_id=${collectionId}&limit=100`);
         const data = await response.json();
 
         if (data.error) {
-            showNotification(`Error: ${data.error}`, 'error');
+            console.error('Error loading documents:', data.error);
             return;
         }
 
-        showNotification(`Collection "${collectionName}" deleted`, 'success');
-        SDKState.currentCollection = null;
-        await loadCollections();
+        AppState.documents = data.documents || [];
+        renderDocuments(AppState.documents);
     } catch (error) {
-        console.error('Failed to delete collection:', error);
-        showNotification('Failed to delete collection', 'error');
+        console.error('Failed to load documents:', error);
     }
 }
 
-// ========== Document Upload ==========
+function renderDocuments(documents) {
+    const container = document.getElementById('documents-list');
+    if (!container) return;
 
-async function uploadDocument(file) {
-    if (!SDKState.currentCollection) {
-        showNotification('Please select a collection first', 'warning');
+    if (!AppState.currentCollection) {
+        container.innerHTML = '<div class="empty-state">Select a collection</div>';
         return;
     }
 
+    if (documents.length === 0) {
+        container.innerHTML = '<div class="empty-state">No documents yet</div>';
+        return;
+    }
+
+    container.innerHTML = documents.map(d => `
+        <div class="document-item">
+            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                <use xlink:href="#icon-file"></use>
+            </svg>
+            <div class="item-info">
+                <div class="item-name">${escapeHtml(d.title || d.filename || 'Document')}</div>
+                <div class="item-meta">${d.filename || ''}</div>
+            </div>
+            <span class="item-status ${d.status}">${d.status}</span>
+        </div>
+    `).join('');
+}
+
+// ========== Upload ==========
+
+function openUploadModal() {
+    if (!AppState.apiConfigured) {
+        showNotification('Please configure your API key first', 'warning');
+        openSettingsModal();
+        return;
+    }
+    if (!AppState.currentCollection) {
+        showNotification('Please select or create a collection first', 'warning');
+        return;
+    }
+    document.getElementById('upload-modal').style.display = 'flex';
+}
+
+function closeUploadModal() {
+    document.getElementById('upload-modal').style.display = 'none';
+    document.getElementById('upload-queue').innerHTML = '';
+    document.getElementById('url-input').value = '';
+}
+
+function handleDragOver(e) {
+    e.preventDefault();
+    e.currentTarget.classList.add('dragover');
+}
+
+function handleDragLeave(e) {
+    e.currentTarget.classList.remove('dragover');
+}
+
+function handleDrop(e) {
+    e.preventDefault();
+    e.currentTarget.classList.remove('dragover');
+
+    const files = e.dataTransfer.files;
+    if (files.length > 0) {
+        handleFiles(files);
+    }
+}
+
+function handleFileSelect(e) {
+    const files = e.target.files;
+    if (files.length > 0) {
+        handleFiles(files);
+    }
+}
+
+function handleFiles(files) {
+    for (const file of files) {
+        uploadFile(file);
+    }
+}
+
+async function uploadFile(file) {
+    const queue = document.getElementById('upload-queue');
+    const itemId = `upload-${Date.now()}`;
+
+    // Add to queue UI
+    queue.innerHTML += `
+        <div class="upload-item" id="${itemId}">
+            <div class="upload-item-icon">
+                <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                    <use xlink:href="#icon-file"></use>
+                </svg>
+            </div>
+            <div class="upload-item-info">
+                <div class="upload-item-name">${escapeHtml(file.name)}</div>
+                <div class="upload-item-size">${formatFileSize(file.size)} - Uploading...</div>
+            </div>
+        </div>
+    `;
+
     const formData = new FormData();
-    formData.append('collection_id', SDKState.currentCollection);
+    formData.append('collection_id', AppState.currentCollection);
     formData.append('file', file);
 
-    showNotification(`Uploading ${file.name}...`, 'info');
-
     try {
-        const response = await fetch(`${API.BASE}${API.DOCUMENTS}`, {
+        const response = await fetch(`${API_BASE}/api/documents`, {
             method: 'POST',
             body: formData
         });
 
         const data = await response.json();
+        const itemEl = document.getElementById(itemId);
 
         if (data.error) {
-            showNotification(`Error: ${data.error}`, 'error');
-            return;
-        }
-
-        showNotification(`Document "${file.name}" uploaded! Processing...`, 'success');
-        monitorDocumentProcessing(data.id);
-    } catch (error) {
-        console.error('Failed to upload document:', error);
-        showNotification('Failed to upload document', 'error');
-    }
-}
-
-async function uploadURL(url) {
-    if (!SDKState.currentCollection) {
-        showNotification('Please select a collection first', 'warning');
-        return;
-    }
-
-    const formData = new FormData();
-    formData.append('collection_id', SDKState.currentCollection);
-    formData.append('url', url);
-
-    showNotification(`Uploading from URL...`, 'info');
-
-    try {
-        const response = await fetch(`${API.BASE}${API.DOCUMENTS}`, {
-            method: 'POST',
-            body: formData
-        });
-
-        const data = await response.json();
-
-        if (data.error) {
-            showNotification(`Error: ${data.error}`, 'error');
-            return;
-        }
-
-        showNotification(`URL content uploaded! Processing...`, 'success');
-        monitorDocumentProcessing(data.id);
-    } catch (error) {
-        console.error('Failed to upload URL:', error);
-        showNotification('Failed to upload URL', 'error');
-    }
-}
-
-async function monitorDocumentProcessing(documentId) {
-    const checkStatus = async () => {
-        try {
-            const response = await fetch(`${API.BASE}${API.DOCUMENTS}/${documentId}/status`);
-            const data = await response.json();
-
-            if (data.status === 'completed') {
-                showNotification(`Document processed: ${data.chunk_count} chunks created`, 'success');
-                await loadCollections(); // Refresh collection counts
-                return true;
-            } else if (data.status === 'failed') {
-                showNotification(`Processing failed: ${data.error_message}`, 'error');
-                return true;
+            if (itemEl) {
+                itemEl.querySelector('.upload-item-size').textContent = 'Failed';
+                itemEl.style.background = '#fef2f2';
             }
-
-            return false;
-        } catch (error) {
-            console.error('Failed to check document status:', error);
-            return true; // Stop monitoring on error
-        }
-    };
-
-    // Poll every 3 seconds for up to 5 minutes
-    let attempts = 0;
-    const maxAttempts = 100;
-
-    const interval = setInterval(async () => {
-        attempts++;
-        const done = await checkStatus();
-
-        if (done || attempts >= maxAttempts) {
-            clearInterval(interval);
-            if (attempts >= maxAttempts) {
-                showNotification('Processing timeout - check document status later', 'warning');
+            showNotification(`Failed to upload ${file.name}`, 'error');
+        } else {
+            if (itemEl) {
+                itemEl.querySelector('.upload-item-size').textContent = 'Processing...';
             }
+            showNotification(`${file.name} uploaded!`, 'success');
+
+            // Monitor processing
+            monitorDocumentStatus(data.id, itemId);
         }
-    }, 3000);
-}
-
-function showUploadDialog() {
-    const dialog = document.getElementById('upload-dialog');
-    if (dialog) {
-        dialog.style.display = 'flex';
+    } catch (error) {
+        showNotification(`Failed to upload ${file.name}`, 'error');
     }
 }
 
-function hideUploadDialog() {
-    const dialog = document.getElementById('upload-dialog');
-    if (dialog) {
-        dialog.style.display = 'none';
-    }
-}
-
-function handleFileSelect(event) {
-    const files = event.target.files;
-    for (let file of files) {
-        uploadDocument(file);
-    }
-    event.target.value = ''; // Reset file input
-}
-
-function handleURLUpload() {
-    const input = document.getElementById('url-input');
-    const url = input.value.trim();
+async function uploadFromUrl() {
+    const url = document.getElementById('url-input').value.trim();
 
     if (!url) {
         showNotification('Please enter a URL', 'warning');
         return;
     }
 
-    uploadURL(url);
-    input.value = '';
-    hideUploadDialog();
-}
+    const formData = new FormData();
+    formData.append('collection_id', AppState.currentCollection);
+    formData.append('url', url);
 
-// ========== Search Mode Selection ==========
+    try {
+        const response = await fetch(`${API_BASE}/api/documents`, {
+            method: 'POST',
+            body: formData
+        });
 
-function updateSearchMode(mode) {
-    SDKState.searchMode = mode;
-    document.querySelectorAll('.mode-option').forEach(el => {
-        el.classList.remove('active');
-    });
-    document.querySelector(`.mode-option[data-mode="${mode}"]`)?.classList.add('active');
-    showNotification(`Search mode: ${mode.toUpperCase()}`, 'info');
-}
+        const data = await response.json();
 
-function toggleGraphEnhancement() {
-    SDKState.graphEnabled = !SDKState.graphEnabled;
-    const toggle = document.getElementById('graph-toggle');
-    if (toggle) {
-        toggle.classList.toggle('active', SDKState.graphEnabled);
+        if (data.error) {
+            showNotification(data.error, 'error');
+        } else {
+            showNotification('URL content uploaded! Processing...', 'success');
+            document.getElementById('url-input').value = '';
+            monitorDocumentStatus(data.id);
+        }
+    } catch (error) {
+        showNotification('Failed to upload URL', 'error');
     }
-    showNotification(`Graph enhancement: ${SDKState.graphEnabled ? 'ON' : 'OFF'}`, 'info');
 }
 
-function getSearchParams() {
-    return {
-        collection_id: SDKState.currentCollection,
-        mode: SDKState.searchMode,
-        enable_graph: SDKState.graphEnabled
+async function monitorDocumentStatus(documentId, itemId) {
+    let attempts = 0;
+    const maxAttempts = 60;
+
+    const check = async () => {
+        try {
+            const response = await fetch(`${API_BASE}/api/documents/${documentId}/status`);
+            const data = await response.json();
+
+            const itemEl = itemId ? document.getElementById(itemId) : null;
+
+            if (data.status === 'completed') {
+                if (itemEl) {
+                    itemEl.querySelector('.upload-item-size').textContent = `${data.chunk_count} chunks`;
+                    itemEl.style.background = '#f0fdf4';
+                }
+                await loadDocuments(AppState.currentCollection);
+                await loadCollections();
+                return true;
+            } else if (data.status === 'failed') {
+                if (itemEl) {
+                    itemEl.querySelector('.upload-item-size').textContent = 'Failed';
+                    itemEl.style.background = '#fef2f2';
+                }
+                showNotification(`Processing failed: ${data.error_message}`, 'error');
+                return true;
+            }
+
+            return false;
+        } catch (error) {
+            return false;
+        }
     };
+
+    const interval = setInterval(async () => {
+        attempts++;
+        const done = await check();
+
+        if (done || attempts >= maxAttempts) {
+            clearInterval(interval);
+        }
+    }, 3000);
 }
 
-// ========== Notifications ==========
+// ========== Utilities ==========
 
 function showNotification(message, type = 'info') {
-    const container = document.getElementById('notification-container') || createNotificationContainer();
+    const container = document.getElementById('notification-container');
+    if (!container) return;
 
     const notification = document.createElement('div');
     notification.className = `notification notification-${type}`;
@@ -317,80 +581,56 @@ function showNotification(message, type = 'info') {
 
     container.appendChild(notification);
 
-    // Auto-remove after 5 seconds
     setTimeout(() => {
         notification.style.opacity = '0';
         setTimeout(() => notification.remove(), 300);
-    }, 5000);
+    }, 4000);
 }
 
-function createNotificationContainer() {
-    const container = document.createElement('div');
-    container.id = 'notification-container';
-    container.className = 'notification-container';
-    document.body.appendChild(container);
-    return container;
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text || '';
+    return div.innerHTML;
 }
 
-// ========== Initialization ==========
-
-function initSDKFeatures() {
-    // Load collections on startup
-    loadCollections();
-
-    // Set up event listeners
-    const collectionSelector = document.getElementById('collection-selector');
-    if (collectionSelector) {
-        collectionSelector.addEventListener('change', (e) => onCollectionChange(e.target.value));
-    }
-
-    const createBtn = document.getElementById('create-collection-btn');
-    if (createBtn) {
-        createBtn.addEventListener('click', createCollection);
-    }
-
-    const deleteBtn = document.getElementById('delete-collection-btn');
-    if (deleteBtn) {
-        deleteBtn.addEventListener('click', deleteCurrentCollection);
-    }
-
-    const uploadBtn = document.getElementById('upload-btn');
-    if (uploadBtn) {
-        uploadBtn.addEventListener('click', showUploadDialog);
-    }
-
-    const fileInput = document.getElementById('file-input');
-    if (fileInput) {
-        fileInput.addEventListener('change', handleFileSelect);
-    }
-
-    const urlSubmit = document.getElementById('url-submit-btn');
-    if (urlSubmit) {
-        urlSubmit.addEventListener('click', handleURLUpload);
-    }
-
-    const closeUpload = document.getElementById('close-upload-dialog');
-    if (closeUpload) {
-        closeUpload.addEventListener('click', hideUploadDialog);
-    }
-
-    // Search mode options
-    document.querySelectorAll('.mode-option').forEach(el => {
-        el.addEventListener('click', () => updateSearchMode(el.dataset.mode));
-    });
-
-    const graphToggle = document.getElementById('graph-toggle');
-    if (graphToggle) {
-        graphToggle.addEventListener('click', toggleGraphEnhancement);
-    }
-
-    // Initialize default search mode
-    updateSearchMode('hybrid');
+function formatFileSize(bytes) {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
 }
 
-// Initialize when DOM is ready
+// ========== UI Visibility ==========
+
+function updateDocumentsSectionVisibility() {
+    const docsWrapper = document.getElementById('documents-section-wrapper');
+    if (docsWrapper) {
+        if (AppState.collections.length > 0) {
+            docsWrapper.classList.add('visible');
+        } else {
+            docsWrapper.classList.remove('visible');
+        }
+    }
+}
+
+// ========== Search Integration ==========
+
+function getSearchParams() {
+    return {
+        collection_id: AppState.currentCollection,
+        mode: 'hybrid',
+        enable_graph: true
+    };
+}
+
+// Expose to global scope for search.js integration
+window.SDKState = AppState;
+window.getSearchParams = getSearchParams;
+
+// Initialize
 if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initSDKFeatures);
+    document.addEventListener('DOMContentLoaded', initApp);
 } else {
-    initSDKFeatures();
+    initApp();
 }

@@ -195,8 +195,8 @@ class TestYouTubeParser:
 
     @pytest.mark.asyncio
     @patch('backend.parsers.youtube_parser.Path')
-    @patch('backend.parsers.youtube_parser.YouTubeTranscriptApi.get_transcript')
-    async def test_parse_success(self, mock_get_transcript, mock_path_class):
+    @patch('backend.parsers.youtube_parser.YouTubeTranscriptApi')
+    async def test_parse_success(self, mock_api_class, mock_path_class):
         """Test successful full parse workflow"""
         # Setup path mock
         mock_path = MagicMock()
@@ -205,11 +205,13 @@ class TestYouTubeParser:
         mock_path.read_text.return_value = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
         mock_path_class.return_value = mock_path
 
-        # Mock transcript with duration
-        mock_get_transcript.return_value = [
+        # Mock YouTubeTranscriptApi instance with fetch method (new API)
+        mock_api_instance = MagicMock()
+        mock_api_instance.fetch.return_value = [
             {"start": 0.0, "text": "Never gonna give you up", "duration": 3.0},
             {"start": 3.5, "text": "Never gonna let you down", "duration": 2.5}
         ]
+        mock_api_class.return_value = mock_api_instance
 
         # Mock metadata using proper async context managers
         mock_metadata_response = MagicMock()
@@ -292,8 +294,8 @@ class TestYouTubeParser:
 
     @pytest.mark.asyncio
     @patch('backend.parsers.youtube_parser.Path')
-    @patch('backend.parsers.youtube_parser.YouTubeTranscriptApi.get_transcript')
-    async def test_parse_transcript_unavailable(self, mock_get_transcript, mock_path_class):
+    @patch('backend.parsers.youtube_parser.YouTubeTranscriptApi')
+    async def test_parse_transcript_unavailable(self, mock_api_class, mock_path_class):
         """Test parse when transcript is unavailable"""
         mock_path = MagicMock()
         mock_path.exists.return_value = True
@@ -301,11 +303,13 @@ class TestYouTubeParser:
         mock_path.read_text.return_value = "https://youtu.be/dQw4w9WgXcQ"  # Valid 11-char ID
         mock_path_class.return_value = mock_path
 
-        # Mock the specific exception that would be raised
-        mock_get_transcript.side_effect = Exception(
+        # Mock YouTubeTranscriptApi instance with fetch raising exception (new API)
+        mock_api_instance = MagicMock()
+        mock_api_instance.fetch.side_effect = Exception(
             "\nCould not retrieve a transcript for the video https://www.youtube.com/watch?v=dQw4w9WgXcQ! "
             "This is most likely caused by:\n\nSubtitles are disabled for this video"
         )
+        mock_api_class.return_value = mock_api_instance
 
         parser = YouTubeParser()
         result = await parser.parse("/fake/path/url.txt")

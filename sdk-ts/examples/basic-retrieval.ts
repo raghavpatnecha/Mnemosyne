@@ -9,7 +9,7 @@
  * - Perform graph search (LightRAG)
  */
 
-import { MnemosyneClient } from '../src/index.js';
+import { MnemosyneClient, RetrievalResponse } from '../src/index.js';
 
 // Initialize client
 const client = new MnemosyneClient({
@@ -20,16 +20,16 @@ const client = new MnemosyneClient({
 // Your collection ID (from ingestion)
 const COLLECTION_ID = process.env.COLLECTION_ID || 'your-collection-id-here';
 
-async function printResults(results: any, mode: string) {
+async function printResults(results: RetrievalResponse, mode: string) {
   console.log('\n' + '='.repeat(60));
   console.log(`MODE: ${mode.toUpperCase()}`);
   console.log('='.repeat(60));
-  console.log(`Found ${results.results.length} results in ${results.processing_time_ms.toFixed(2)}ms\n`);
+  console.log(`Found ${results.results.length} results (total: ${results.total_results})\n`);
 
   for (let i = 0; i < results.results.length; i++) {
     const result = results.results[i];
     console.log(`${i + 1}. Score: ${result.score.toFixed(4)}`);
-    console.log(`   Document: ${result.document.title || result.document.filename}`);
+    console.log(`   Document: ${result.document.title ?? result.document.filename ?? 'Unknown'}`);
     console.log(`   Chunk ${result.chunk_index}: ${result.content.substring(0, 150)}...`);
     console.log();
   }

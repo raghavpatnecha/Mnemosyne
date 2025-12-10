@@ -28,8 +28,8 @@ from backend.models.chat_message import ChatMessage
 
 
 @pytest.fixture(scope="session")
-def test_db_engine():
-    """Create in-memory SQLite database for tests"""
+def test_db_engine_sqlite():
+    """Create in-memory SQLite database for unit tests (fast, isolated)"""
     engine = create_engine(
         "sqlite:///:memory:",
         connect_args={"check_same_thread": False},
@@ -39,20 +39,74 @@ def test_db_engine():
     return engine
 
 
+@pytest.fixture(scope="session")
+def test_db_engine_postgres():
+    """
+    Create PostgreSQL test database for integration tests (real database).
+    Requires PostgreSQL running (via docker-compose).
+    Uses test database: mnemosyne_test
+    """
+    from backend.config import settings
+    from sqlalchemy.engine.url import make_url
+
+    # Parse the database URL and change only the database name
+    url = make_url(settings.DATABASE_URL)
+    url = url.set(database="mnemosyne_test")
+
+    engine = create_engine(url)
+
+    # Create all tables
+    Base.metadata.create_all(bind=engine)
+
+    yield engine
+
+    # Cleanup: Drop all tables after session
+    Base.metadata.drop_all(bind=engine)
+    engine.dispose()
+
+
 @pytest.fixture
-def db_session(test_db_engine) -> Generator[Session, None, None]:
-    """Create a database session for each test"""
+def db_session(request) -> Generator[Session, None, None]:
+    """
+    Create a database session for each test with transaction isolation.
+    ALL tests now use real PostgreSQL (both unit and integration).
+    Requires PostgreSQL running via docker-compose.
+
+    Uses nested transactions (SAVEPOINT) to ensure complete rollback
+    after each test, providing proper test isolation.
+    """
+    from sqlalchemy import event
+
+    # All tests use PostgreSQL
+    engine = request.getfixturevalue('test_db_engine_postgres')
+
+    # Create connection and begin outer transaction
+    connection = engine.connect()
+    transaction = connection.begin()
+
     TestingSessionLocal = sessionmaker(
         autocommit=False,
         autoflush=False,
-        bind=test_db_engine
+        bind=connection
     )
     session = TestingSessionLocal()
+
+    # Begin nested transaction (SAVEPOINT) for the test
+    session.begin_nested()
+
+    # Each time the SAVEPOINT is committed, restart it
+    @event.listens_for(session, "after_transaction_end")
+    def restart_savepoint(session, transaction):
+        if transaction.nested and not transaction._parent.nested:
+            session.begin_nested()
+
     try:
         yield session
     finally:
-        session.rollback()
+        # Always rollback the nested transaction (test data)
         session.close()
+        transaction.rollback()
+        connection.close()
 
 
 @pytest.fixture
@@ -88,16 +142,18 @@ def test_collection(db_session, test_user) -> Collection:
 @pytest.fixture
 def test_document(db_session, test_user, test_collection) -> Document:
     """Create a test document"""
+    import hashlib
     document = Document(
         id=uuid4(),
         title="Test Document",
         filename="test_doc.pdf",
-        file_type="pdf",
-        file_size=1024,
+        content_type="application/pdf",
+        size_bytes=1024,
         user_id=test_user.id,
         collection_id=test_collection.id,
         status="completed",
-        metadata={"source": "test"}
+        content_hash=hashlib.sha256(b"test content").hexdigest(),
+        metadata_={"source": "test"}
     )
     db_session.add(document)
     db_session.commit()
@@ -188,7 +244,7 @@ def sample_search_results() -> List[Dict]:
 
 @pytest.fixture
 def mock_redis():
-    """Mock Redis connection"""
+    """Mock Redis connection for unit tests"""
     mock = MagicMock()
     mock.ping.return_value = True
     mock.get.return_value = None
@@ -203,6 +259,41 @@ def mock_redis():
         'keyspace_misses': 5
     }
     return mock
+
+
+@pytest.fixture
+def real_redis(request):
+    """
+    Real Redis connection for integration tests.
+    Uses test database (db index 1) to avoid conflicts with dev data.
+    """
+    is_integration = request.node.get_closest_marker('integration') is not None
+
+    if not is_integration:
+        # Unit tests should use mock_redis, not this fixture
+        pytest.skip("real_redis fixture only for integration tests")
+
+    import redis
+    from backend.config import settings
+
+    # Connect to Redis test database (db=1, not db=0)
+    redis_url = settings.REDIS_URL.replace('/0', '/1')
+    client = redis.from_url(redis_url, decode_responses=True)
+
+    # Test connection
+    try:
+        client.ping()
+    except redis.ConnectionError:
+        pytest.skip("Redis not available for integration tests")
+
+    # Cleanup before test
+    client.flushdb()
+
+    yield client
+
+    # Cleanup after test
+    client.flushdb()
+    client.close()
 
 
 @pytest.fixture

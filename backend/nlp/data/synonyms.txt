@@ -1,0 +1,40 @@
+# Custom domain-specific synonyms for Mnemosyne
+# Format: word: synonym1, synonym2, synonym3
+
+# RAG/AI terms
+rag: retrieval augmented generation, retrieval-augmented-generation
+llm: large language model, language model, ai model
+embedding: vector embedding, dense vector, representation
+chunking: text splitting, segmentation, text segmentation
+retrieval: search, fetch, lookup, find
+semantic: meaning-based, contextual, conceptual
+vector: embedding, representation, dense representation
+
+# Document types
+pdf: portable document format, document
+docx: word document, microsoft word
+resume: cv, curriculum vitae
+cv: resume, curriculum vitae
+
+# Search terms
+search: find, lookup, query, retrieve
+query: search, question, request
+filter: refine, narrow, constraint
+sort: order, rank, arrange
+
+# Common technical terms
+api: application programming interface, interface, endpoint
+database: db, datastore, data store
+cache: memory cache, temporary storage
+index: search index, inverted index
+
+# Actions
+create: add, insert, make, generate
+update: modify, edit, change, patch
+delete: remove, destroy, erase
+get: fetch, retrieve, read, obtain
+
+# Quality terms
+accurate: precise, exact, correct
+fast: quick, rapid, speedy, efficient
+reliable: dependable, stable, consistent

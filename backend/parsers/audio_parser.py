@@ -71,6 +71,8 @@ class AudioParser:
         Returns:
             True if parser supports this content type
         """
+        if not content_type:
+            return False
         return content_type in self.SUPPORTED_FORMATS or content_type.startswith("audio/")
 
     async def parse(self, file_path: str) -> Dict[str, Any]:

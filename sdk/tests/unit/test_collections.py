@@ -9,7 +9,7 @@ def test_create_collection(client, httpx_mock: HTTPXMock, mock_collection_respon
     """Test collection creation"""
     httpx_mock.add_response(
         method="POST",
-        url="http://localhost:8000/collections",
+        url="http://localhost:8000/api/v1/collections",
         json=mock_collection_response,
     )
 
@@ -29,7 +29,7 @@ def test_list_collections(client, httpx_mock: HTTPXMock, mock_collection_respons
     """Test listing collections"""
     httpx_mock.add_response(
         method="GET",
-        url="http://localhost:8000/collections?limit=20&offset=0",
+        url="http://localhost:8000/api/v1/collections?limit=20&offset=0",
         json={
             "data": [mock_collection_response],
             "pagination": {
@@ -52,7 +52,7 @@ def test_get_collection(client, httpx_mock: HTTPXMock, collection_id, mock_colle
     """Test getting a collection by ID"""
     httpx_mock.add_response(
         method="GET",
-        url=f"http://localhost:8000/collections/{collection_id}",
+        url=f"http://localhost:8000/api/v1/collections/{collection_id}",
         json=mock_collection_response,
     )
 
@@ -68,7 +68,7 @@ def test_update_collection(client, httpx_mock: HTTPXMock, collection_id, mock_co
 
     httpx_mock.add_response(
         method="PATCH",
-        url=f"http://localhost:8000/collections/{collection_id}",
+        url=f"http://localhost:8000/api/v1/collections/{collection_id}",
         json=updated_response,
     )
 
@@ -84,7 +84,7 @@ def test_delete_collection(client, httpx_mock: HTTPXMock, collection_id):
     """Test deleting a collection"""
     httpx_mock.add_response(
         method="DELETE",
-        url=f"http://localhost:8000/collections/{collection_id}",
+        url=f"http://localhost:8000/api/v1/collections/{collection_id}",
         status_code=204,
     )
 

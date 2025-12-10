@@ -58,37 +58,49 @@ class RerankerService:
         try:
             from rerankers import Reranker
 
-            # Map provider to rerankers model type
-            provider_map = {
-                'flashrank': 'flashrank',
-                'cohere': 'api',
-                'jina': 'api',
-                'voyage': 'api',
-                'mixedbread': 'api'
-            }
+            # Supported providers
+            supported_providers = ['flashrank', 'cohere', 'jina', 'voyage', 'mixedbread']
 
-            if provider not in provider_map:
+            if provider not in supported_providers:
                 logger.error(
                     f"Unsupported reranker provider: {provider}. "
-                    f"Supported: {list(provider_map.keys())}"
+                    f"Supported: {supported_providers}"
                 )
                 return
-
-            model_type = provider_map[provider]
 
             # Build initialization kwargs
             init_kwargs = {
                 'model_name': settings.RERANK_MODEL,
-                'model_type': model_type
+                'verbose': 0  # Suppress "missing dependencies" false warning
             }
 
-            # Add API key for API-based providers
-            if provider != 'flashrank' and settings.RERANK_API_KEY:
-                init_kwargs['api_key'] = settings.RERANK_API_KEY
-
-            # For flashrank, add cache directory
+            # Handle provider-specific initialization
             if provider == 'flashrank':
+                # Flashrank uses model_type parameter
+                init_kwargs['model_type'] = 'flashrank'
                 init_kwargs['cache_dir'] = './models'
+            else:
+                # API-based providers use api_provider parameter
+                init_kwargs['api_provider'] = provider
+
+                # Get API key - check for valid key (not empty, not comment text)
+                api_key = settings.RERANK_API_KEY
+                # Validate API key - reject if empty or looks like a comment
+                if not api_key or api_key.startswith('#') or len(api_key) < 10:
+                    api_key = None
+
+                # Fallback to provider-specific keys
+                if not api_key and provider == 'jina':
+                    api_key = settings.JINA_API_KEY
+
+                if api_key:
+                    init_kwargs['api_key'] = api_key
+                else:
+                    logger.warning(
+                        f"No API key found for {provider} reranker. "
+                        f"Set RERANK_API_KEY or JINA_API_KEY."
+                    )
+                    return
 
             # Initialize reranker
             self.reranker = Reranker(**init_kwargs)
@@ -110,7 +122,8 @@ class RerankerService:
         self,
         query: str,
         chunks: List[Dict],
-        top_k: Optional[int] = None
+        top_k: Optional[int] = None,
+        use_expanded_content: bool = False
     ) -> List[Dict]:
         """
         Rerank chunks using configured reranker
@@ -119,6 +132,8 @@ class RerankerService:
             query: Search query
             chunks: List of chunk dictionaries with 'content' field
             top_k: Number of top results to return (default: all)
+            use_expanded_content: If True, rerank on 'expanded_content' instead of 'content'
+                                  This prevents context rot from blind context expansion
 
         Returns:
             Reranked chunks with added 'rerank_score' field
@@ -140,7 +155,11 @@ class RerankerService:
             documents = []
             for i, chunk in enumerate(chunks):
                 doc_id = chunk.get('chunk_id', f'chunk_{i}')
-                content = chunk.get('content', '')
+                # Use expanded_content if available and requested, otherwise fall back to content
+                if use_expanded_content:
+                    content = chunk.get('expanded_content', chunk.get('content', ''))
+                else:
+                    content = chunk.get('content', '')
 
                 documents.append(
                     Document(
@@ -188,7 +207,8 @@ class RerankerService:
         query: str,
         chunks: List[Dict],
         threshold: float = 0.3,
-        top_k: Optional[int] = None
+        top_k: Optional[int] = None,
+        use_expanded_content: bool = False
     ) -> List[Dict]:
         """
         Rerank and filter chunks by score threshold
@@ -198,12 +218,14 @@ class RerankerService:
             chunks: List of chunk dictionaries
             threshold: Minimum rerank score (0-1)
             top_k: Maximum results to return
+            use_expanded_content: If True, rerank on 'expanded_content' field
+                                  to validate context expansion quality
 
         Returns:
             Filtered and reranked chunks above threshold
         """
-        # Rerank all chunks
-        reranked = self.rerank(query, chunks, top_k=None)
+        # Rerank all chunks (using expanded_content if requested)
+        reranked = self.rerank(query, chunks, top_k=None, use_expanded_content=use_expanded_content)
 
         # Filter by threshold
         filtered = [

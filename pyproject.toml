@@ -22,15 +22,20 @@ python-multipart = "^0.0.9"
 alembic = "^1.13.0"
 celery = {extras = ["redis"], version = "^5.3.0"}
 redis = "^5.0.0"
-docling = "^1.0.0"
-chonkie = "^0.1.0"
+docling = "^2.63.0"
+docling-core = "^2.52.0"
+docling-ibm-models = "^3.10.0"
+docling-parse = "^4.7.1"
+chonkie = "^1.0.4"
 openai = "^1.0.0"
 tiktoken = "^0.7.0"
 python-magic = "^0.4.27"
 flashrank = "^0.2.0"
 rerankers = {extras = ["flashrank"], version = "^0.7.1"}
-litellm = "^1.77.5"
-langchain-litellm = "^0.2.3"
+litellm = "^1.52.0"
+langchain = "^0.3.0"
+langchain-core = "^0.3.0"
+langchain-litellm = "^0.3.0"
 slowapi = "^0.1.9"
 tenacity = "^8.0.0"
 pandas = "^2.2.0"
@@ -39,13 +44,25 @@ tabulate = "^0.9.0"
 aiohttp = "^3.9.0"
 youtube-transcript-api = "^0.6.0"
 lightrag-hku = "^1.4.9.8"
+boto3 = "^1.35.0"
+sentence-transformers = "^3.0.0"
+
+# Optional vision dependencies for advanced document processing
+# These enable ONNX-based table structure recognition and OCR
+onnxruntime = {version = "^1.18.0", optional = true}
+opencv-python-headless = {version = "^4.10.0", optional = true}
+paddleocr = {version = "^2.7.0", optional = true}
+paddlepaddle = {version = "^2.6.0", optional = true}
+
+[tool.poetry.extras]
+vision = ["onnxruntime", "opencv-python-headless", "paddleocr", "paddlepaddle"]
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.0.0"
 pytest-asyncio = "^0.23.0"
 pytest-cov = "^4.1.0"
 pytest-mock = "^3.12.0"
-httpx = "^0.27.0"
+httpx = ">=0.27.0,<0.28.0"  # Pin to 0.27.x for Starlette TestClient compatibility
 black = "^24.0.0"
 ruff = "^0.3.0"
 

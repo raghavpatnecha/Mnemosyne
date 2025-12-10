@@ -148,7 +148,7 @@ mnemosyne/
 │   ├── user/          # User-facing documentation
 │   ├── developer/     # Developer documentation
 │   └── archive/       # Historical docs
-├── src/               # [DEPRECATED] Legacy Medium search (kept for reference)
+├── src/               # Quart web frontend (app.py, templates, static assets)
 ├── tests/             # Test suites
 ├── .claude/           # Claude Code configuration
 │   └── skills/        # Custom skills (memory, swarm)
@@ -162,6 +162,34 @@ mnemosyne/
 2. **Service Layer**: Business logic (document processing, search, chat)
 3. **Task Layer**: Celery async tasks (parsing, chunking, embedding, indexing)
 4. **Data Layer**: PostgreSQL + pgvector + Redis (storage, vectors, cache)
+
+### Running the Platform Locally
+
+**Backend API (FastAPI):**
+```bash
+# Start from project root
+python -m uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
+```
+- API server: http://localhost:8000
+- Interactive docs: http://localhost:8000/docs
+- Requires PostgreSQL and Redis running (via docker-compose)
+
+**Frontend UI (Quart):**
+```bash
+# Install dependencies
+pip install quart quart-cors
+
+# Start frontend server
+python -m src.app
+```
+- Web UI: http://localhost:5000 (default Quart port)
+- Features: Collection management, document upload, search modes, chat interface
+- Connects to FastAPI backend at http://localhost:8000
+
+**Docker Services (Required):**
+```bash
+docker-compose up -d  # PostgreSQL, Redis, Celery workers
+```
 
 ### Code Organization Rules
 
@@ -226,12 +254,17 @@ from backend.models import ...
 
 ### Search Modes
 
-**Five Search Modes:**
+**Four Search Modes:**
 1. **Semantic**: Vector similarity with pgvector
 2. **Keyword**: PostgreSQL full-text search (BM25)
-3. **Hybrid**: RRF fusion of semantic + keyword
-4. **Hierarchical**: Two-tier document → chunk retrieval
-5. **Graph**: LightRAG knowledge graph traversal
+3. **Hybrid**: RRF fusion of semantic + keyword (default)
+4. **Graph**: LightRAG knowledge graph traversal
+
+**Enhancement Options** (combinable with any mode):
+- **Hierarchical**: Two-tier document → chunk retrieval (`hierarchical: true`)
+- **Reranking**: Cross-encoder reranking for improved relevance (`rerank: true`)
+- **Context Expansion**: Sentence window retrieval (`expand_context: true`)
+- **Graph Enhancement**: Add knowledge graph context (`enable_graph: true`)
 
 ### API Design
 

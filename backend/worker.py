@@ -10,7 +10,10 @@ celery_app = Celery(
     "mnemosyne",
     broker=settings.REDIS_URL,
     backend=settings.REDIS_URL,
-    include=["backend.tasks.process_document"]
+    include=[
+        "backend.tasks.process_document",
+        "backend.tasks.retry_pending_documents"
+    ]
 )
 
 celery_app.conf.update(
@@ -25,3 +28,14 @@ celery_app.conf.update(
     worker_max_tasks_per_child=1000,
     worker_prefetch_multiplier=4,
 )
+
+# Celery Beat schedule for periodic tasks
+celery_app.conf.beat_schedule = {
+    'retry-pending-documents': {
+        'task': 'retry_pending_documents',
+        'schedule': 600.0,  # Run every 10 minutes (600 seconds)
+        'options': {
+            'expires': 300.0,  # Task expires after 5 minutes if not executed
+        }
+    },
+}

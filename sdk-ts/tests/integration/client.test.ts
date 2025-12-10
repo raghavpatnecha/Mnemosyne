@@ -116,17 +116,20 @@ describe('MnemosyneClient Integration', () => {
         .fn()
         .mockResolvedValue(createMockSSEResponse(['Based', ' on', ' the', ' documents']));
 
-      const chunks: string[] = [];
+      const events: unknown[] = [];
 
-      for await (const chunk of client.chat.chat({
+      for await (const event of client.chat.chat({
         message: 'What does this document say?',
         collection_id: 'coll_test',
         stream: true,
       })) {
-        chunks.push(chunk);
+        events.push(event);
       }
 
-      expect(chunks).toEqual(['Based', ' on', ' the', ' documents']);
+      // Filter delta events and extract content
+      const deltaEvents = events.filter((e: unknown) => (e as { type: string }).type === 'delta');
+      const deltas = deltaEvents.map((e: unknown) => (e as { delta: string }).delta);
+      expect(deltas).toEqual(['Based', ' on', ' the', ' documents']);
 
       // Step 6: Clean up (create new mocks for each call to avoid body reuse)
       global.fetch = vi.fn().mockResolvedValueOnce(createMockResponse({ success: true }));

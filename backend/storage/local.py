@@ -198,7 +198,10 @@ class LocalStorage(StorageBackend):
 
     def get_local_path(self, storage_path: str, user_id: UUID) -> str:
         """Get local filesystem path (already local, just return absolute path)"""
-        absolute_path = self.base_path / storage_path
+        # Normalize path separators for cross-platform compatibility
+        # (Windows uploads may store backslashes, Docker/Linux uses forward slashes)
+        normalized_path = storage_path.replace('\\', '/')
+        absolute_path = self.base_path / normalized_path
 
         # Verify path is within user's directory (security check)
         expected_prefix = self.base_path / "users" / str(user_id)

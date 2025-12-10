@@ -213,7 +213,7 @@ class TestImageParser:
         # Verify API call
         call_args = mock_client.chat.completions.create.call_args
         assert call_args.kwargs["model"] == "gpt-4o"
-        assert call_args.kwargs["max_tokens"] == 1000
+        assert call_args.kwargs["max_completion_tokens"] == 1000
         assert call_args.kwargs["temperature"] == 0.1
 
     @patch('backend.parsers.image_parser.settings')

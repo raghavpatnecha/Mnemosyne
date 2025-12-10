@@ -245,7 +245,11 @@ async def update_collection(
     update_data = collection_update.dict(exclude_unset=True)
 
     for field, value in update_data.items():
-        setattr(collection, field, value)
+        # Map 'metadata' to 'metadata_' (SQLAlchemy reserves 'metadata')
+        if field == 'metadata':
+            setattr(collection, 'metadata_', value)
+        else:
+            setattr(collection, field, value)
 
     db.commit()
     db.refresh(collection)

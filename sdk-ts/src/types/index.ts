@@ -46,9 +46,24 @@ export type {
 
 // Chat types
 export type {
+  MessageRole,
+  ChatPreset,
+  ReasoningMode,
+  Message,
+  RetrievalConfig,
+  GenerationConfig,
   ChatRequest,
+  DocumentInfo as ChatDocumentInfo,
+  MediaItem,
+  FollowUpQuestion,
+  SourceReference,
   Source,
-  ChatResponse,
+  UsageStats,
+  ChatMetadata,
+  ChatCompletionResponse,
+  StreamChunkType,
+  StreamChunk,
   ChatSessionResponse,
   ChatMessageResponse,
+  ChatResponse,
 } from './chat.js';

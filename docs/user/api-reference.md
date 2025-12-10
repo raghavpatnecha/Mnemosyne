@@ -228,6 +228,29 @@ metadata: {"author": "John Doe", "category": "technical"}
 
 **Supported Formats**: PDF, DOCX, PPTX, XLSX, TXT, MD, HTML, CSV, JSON, XML, EPUB, images (PNG, JPG, etc.), audio (MP3, WAV), video (MP4, etc.)
 
+**Document Type Hints** (Optional):
+
+You can provide a `document_type` hint in metadata to help the system apply specialized domain processing:
+
+```json
+{
+  "collection_id": "col_abc123",
+  "file": "contract.pdf",
+  "metadata": {
+    "document_type": "legal"  // legal, academic, qa, table, or general
+  }
+}
+```
+
+**Available Document Types**:
+- `legal` - Contracts, regulations, policies (extracts hierarchical structure: Parts, Sections, Articles, Clauses)
+- `academic` - Research papers, theses (extracts title, authors, abstract, sections, references)
+- `qa` - FAQ documents, exam papers, interview questions (extracts Q&A pairs)
+- `table` - Spreadsheets, tabular data (enhances table structure recognition)
+- `general` - Default processing (no specialized handling)
+
+If not specified, the system auto-detects document type using metadata heuristics and optional LLM classification.
+
 ### Create Document (URL)
 
 Ingest content from a URL.
@@ -384,6 +407,7 @@ Perform semantic search and retrieve relevant document chunks.
   "query": "How do I deploy the application?",
   "top_k": 10,
   "mode": "hybrid",
+  "document_type": "technical",
   "rerank": true,
   "metadata_filter": {
     "category": "technical",
@@ -402,6 +426,7 @@ Perform semantic search and retrieve relevant document chunks.
   - `"graph"`: LightRAG knowledge graph search with source extraction
 - `top_k` (int, default: 10, max: 100): Number of results to return
 - `collection_id` (UUID, optional): Filter by specific collection
+- `document_type` (string, optional): Filter by document type (legal, academic, qa, table, general)
 - `rerank` (boolean, default: false): Apply reranking to improve accuracy by 15-25%
 - `enable_graph` (boolean, default: false): Enhance results with knowledge graph context ⚡
 - `metadata_filter` (object, optional): Filter by metadata fields
@@ -607,119 +632,291 @@ Use mode `"graph"` for knowledge graph-based retrieval with automatic source ext
 
 ## 4. Chat API
 
+RAG-powered conversational AI that uses the retrieval endpoint internally for all search operations.
+
 ### Chat Completion
 
-Generate a chat completion using retrieved context.
+**Endpoint**: `POST /chat`
 
-**Endpoint**: `POST /chat/completions`
+Supports both OpenAI-compatible messages array and simple message string.
 
-**Request Body**:
+**Request Body (OpenAI-compatible)**:
 ```json
 {
-  "collection_id": "col_abc123",
   "messages": [
-    {
-      "role": "user",
-      "content": "How do I deploy the application?"
-    }
+    {"role": "system", "content": "You are a helpful assistant"},
+    {"role": "user", "content": "How do I deploy the application?"}
   ],
-  "model": "gpt-4o-mini",
-  "retrieval_config": {
+  "collection_id": "col_abc123",
+  "stream": true,
+  "model": "gpt-4o",
+  "preset": "research",
+  "reasoning_mode": "deep",
+  "temperature": 0.5,
+  "max_tokens": 2000,
+  "retrieval": {
     "mode": "hybrid",
-    "top_k": 10,
-    "rerank": true
+    "top_k": 5,
+    "rerank": true,
+    "enable_graph": true,
+    "hierarchical": true,
+    "expand_context": true
   },
-  "generation_config": {
+  "generation": {
+    "model": "gpt-4o-mini",
     "temperature": 0.7,
-    "max_tokens": 1000,
-    "stream": false
+    "max_tokens": 1000
   }
 }
 ```
+
+**Request Body (Legacy - deprecated)**:
+```json
+{
+  "message": "How do I deploy the application?",
+  "collection_id": "col_abc123",
+  "stream": true
+}
+```
+
+### Top-Level Request Parameters
+
+These parameters provide convenient shortcuts that override the nested `generation` config:
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `model` | string | null | LLM model override (e.g., "gpt-4o", "claude-3-opus", "gpt-4o-mini"). Supports any LiteLLM-compatible model. |
+| `preset` | string | "detailed" | Answer style preset (see presets table below) |
+| `reasoning_mode` | string | "standard" | Reasoning depth: "standard" (single-pass) or "deep" (multi-step iterative) |
+| `temperature` | float | null | Temperature override (0.0-2.0). Overrides preset and generation.temperature |
+| `max_tokens` | int | null | Max tokens override (1-8192). Overrides preset and generation.max_tokens |
+| `custom_instruction` | string | null | Custom instruction appended to the system prompt for additional guidance (e.g., "focus on security aspects", "generate 10 MCQs") |
+| `is_follow_up` | boolean | false | Whether this is a follow-up to a previous question. When true, previous context from the session is preserved and used to inform the response. |
+
+### Answer Style Presets
+
+Presets provide predefined configurations for different use cases:
+
+| Preset | Temperature | Max Tokens | Description |
+|--------|-------------|------------|-------------|
+| `concise` | 0.3 | 500 | Brief, to-the-point answers |
+| `detailed` | 0.5 | 2000 | Comprehensive explanations (default) |
+| `research` | 0.2 | 4000 | Academic style with thorough analysis |
+| `technical` | 0.1 | 3000 | Precise, detail-oriented answers with exact terminology |
+| `creative` | 0.8 | 2000 | More exploratory, creative responses |
+| `qna` | 0.4 | 4000 | Question generation mode (MCQs, quizzes, study materials) |
+
+**Preset Examples**:
+```json
+// Concise answer for quick lookups
+{"message": "What is RAG?", "preset": "concise"}
+
+// Research-grade response with citations
+{"message": "Compare RAG architectures", "preset": "research"}
+
+// Technical precise answer with exact details
+{"message": "What are the specifications in this document?", "preset": "technical"}
+
+// Question generation mode
+{"message": "Create questions about this topic", "preset": "qna", "custom_instruction": "Generate 10 MCQs with 4 options each"}
+```
+
+### Deep Reasoning Mode
+
+The `reasoning_mode: "deep"` enables multi-step iterative reasoning inspired by agentic RAG systems. Instead of a single retrieval-then-generate pass, deep reasoning:
+
+1. **Decomposes** the query into sub-questions
+2. **Iteratively retrieves** relevant context for each sub-question
+3. **Synthesizes** findings into a comprehensive answer
+
+**When to Use Deep Reasoning**:
+- Complex multi-part questions
+- Questions requiring analysis across multiple topics
+- Research-grade queries needing thorough exploration
+
+**Example Request**:
+```json
+{
+  "message": "Compare the pros and cons of different RAG architectures and recommend which is best for a legal document search system",
+  "preset": "research",
+  "reasoning_mode": "deep",
+  "model": "gpt-4o"
+}
+```
+
+**Retrieval Configuration Options**:
+- `mode`: Search mode - "semantic", "keyword", "hybrid" (default), "graph"
+- `top_k`: Number of chunks to retrieve (1-50, default: 5)
+- `rerank`: Enable cross-encoder reranking (default: true)
+- `enable_graph`: Enable LightRAG knowledge graph enhancement (default: true)
+- `hierarchical`: Enable two-tier hierarchical search (default: true)
+- `expand_context`: Expand results with surrounding chunks (default: true)
+- `metadata_filter`: Metadata filters for retrieval
+
+**Generation Configuration Options** (nested, can be overridden by top-level params):
+- `model`: LLM model name (default: "gpt-4o-mini")
+- `temperature`: Sampling temperature 0-2 (default: 0.7)
+- `max_tokens`: Maximum tokens to generate (default: 1000)
+- `top_p`: Nucleus sampling parameter (default: 1.0)
+- `frequency_penalty`: Frequency penalty -2 to 2 (default: 0)
+- `presence_penalty`: Presence penalty -2 to 2 (default: 0)
 
 **Response (Non-Streaming)**: `200 OK`
 ```json
 {
-  "id": "chat_comp_xxx",
-  "object": "chat.completion",
-  "created": 1700000000,
-  "model": "gpt-4o-mini",
-  "choices": [
+  "query": "How do I deploy the application?",
+  "response": "To deploy the application, follow these steps:\n\n1. Build the Docker image...",
+  "sources": [
     {
-      "index": 0,
-      "message": {
-        "role": "assistant",
-        "content": "To deploy the application, follow these steps:\n\n1. Build the Docker image using `docker build -t app:latest .`\n2. Push to registry...",
-        "context_used": [
-          {
-            "chunk_id": "chunk_aaa111",
-            "document_id": "doc_xyz789",
-            "score": 0.92
-          }
-        ]
-      },
-      "finish_reason": "stop"
+      "document_id": "doc_xyz789",
+      "title": "Deployment Guide",
+      "filename": "deploy.pdf",
+      "chunk_index": 5,
+      "score": 0.92
     }
   ],
   "usage": {
     "prompt_tokens": 1250,
-    "completion_tokens": 180,
-    "total_tokens": 1430
+    "completion_tokens": 350,
+    "total_tokens": 1600,
+    "retrieval_tokens": 800
   },
-  "retrieval_metadata": {
-    "mode": "hybrid",
-    "chunks_retrieved": 10,
-    "chunks_used": 3,
-    "retrieval_time_ms": 45
+  "metadata": {
+    "session_id": "550e8400-e29b-41d4-a716-446655440000",
+    "user_id": "123e4567-e89b-12d3-a456-426614174000",
+    "collection_id": "col_abc123",
+    "retrieval_mode": "hybrid",
+    "model": "gpt-4o-mini",
+    "latency_ms": 1250,
+    "retrieval_latency_ms": 450,
+    "generation_latency_ms": 800,
+    "timestamp": "2025-01-15T10:30:00Z"
   }
 }
 ```
+
+**Note**: Sources are lightweight references containing only document identification and relevance score. The knowledge graph context (when `enable_graph: true`) is used internally to enrich the LLM prompt but is not exposed in the response.
 
 **Response (Streaming)**: `200 OK` with `Content-Type: text/event-stream`
 
 ```
-data: {"id":"chat_comp_xxx","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"role":"assistant","content":"To"}}]}
+data: {"type":"sources","sources":[{"document_id":"doc_xyz789","title":"Deployment Guide","filename":"deploy.pdf","chunk_index":5,"score":0.92}]}
 
-data: {"id":"chat_comp_xxx","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"content":" deploy"}}]}
+data: {"type":"delta","content":"To"}
 
-data: {"id":"chat_comp_xxx","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"content":" the"}}]}
+data: {"type":"delta","content":" deploy"}
+
+data: {"type":"delta","content":" the"}
 
 ...
 
-data: [DONE]
+data: {"type":"usage","usage":{"prompt_tokens":1250,"completion_tokens":350,"total_tokens":1600}}
+
+data: {"type":"done","metadata":{"session_id":"...", "latency_ms":1250, ...}}
 ```
 
-### Multi-Turn Chat
+**Stream Chunk Types**:
+- `sources`: Lightweight source references (sent once at start)
+- `delta`: Incremental text content
+- `usage`: Token usage statistics (sent at end)
+- `done`: Stream completion signal with metadata
+- `error`: Error message if something fails
+- `reasoning_step`: Deep reasoning progress (step number + description)
+- `sub_query`: Sub-query being processed during deep reasoning
 
-**Endpoint**: `POST /chat/completions` (same endpoint, multiple messages)
+**Deep Reasoning Streaming Example**:
 
-**Request Body**:
+When using `reasoning_mode: "deep"`, additional chunk types are emitted to show reasoning progress:
+
+```
+data: {"type":"reasoning_step","step":1,"description":"Analyzing RAG architecture types"}
+
+data: {"type":"sub_query","query":"What are the main RAG architecture patterns?"}
+
+data: {"type":"sources","sources":[...]}
+
+data: {"type":"reasoning_step","step":2,"description":"Evaluating legal document requirements"}
+
+data: {"type":"sub_query","query":"What are specific requirements for legal document search?"}
+
+data: {"type":"sources","sources":[...]}
+
+data: {"type":"reasoning_step","step":3,"description":"Synthesizing recommendations"}
+
+data: {"type":"delta","content":"Based on my analysis..."}
+...
+data: {"type":"done","metadata":{...}}
+```
+
+### Multi-Turn Chat with Sessions
+
+Use `session_id` for multi-turn conversations. If not provided, a new session is created.
+
+**Request**:
 ```json
 {
-  "collection_id": "col_abc123",
+  "session_id": "550e8400-e29b-41d4-a716-446655440000",
   "messages": [
-    {
-      "role": "user",
-      "content": "How do I deploy the application?"
-    },
-    {
-      "role": "assistant",
-      "content": "To deploy the application, follow these steps..."
-    },
-    {
-      "role": "user",
-      "content": "What about database migrations?"
-    }
+    {"role": "user", "content": "What about database migrations?"}
   ],
-  "model": "gpt-4o-mini",
-  "retrieval_config": {
-    "mode": "hybrid",
-    "top_k": 10
-  }
+  "collection_id": "col_abc123"
 }
 ```
 
-**Note**: Mnemosyne performs retrieval on each user message, combining context from all turns.
+Mnemosyne maintains conversation history per session and retrieves context for each user message.
+
+### List Chat Sessions
+
+**Endpoint**: `GET /chat/sessions`
+
+**Query Parameters**:
+- `limit`: Max sessions to return (default: 20)
+- `offset`: Offset for pagination
+
+**Response**: `200 OK`
+```json
+[
+  {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "user_id": "123e4567-e89b-12d3-a456-426614174000",
+    "collection_id": "col_abc123",
+    "title": "How do I deploy...",
+    "created_at": "2025-01-15T10:30:00Z",
+    "last_message_at": "2025-01-15T10:35:00Z",
+    "message_count": 4
+  }
+]
+```
+
+### Get Session Messages
+
+**Endpoint**: `GET /chat/sessions/{session_id}/messages`
+
+**Response**: `200 OK`
+```json
+[
+  {
+    "id": "msg_abc123",
+    "session_id": "550e8400-e29b-41d4-a716-446655440000",
+    "role": "user",
+    "content": "How do I deploy the application?",
+    "created_at": "2025-01-15T10:30:00Z"
+  },
+  {
+    "id": "msg_def456",
+    "session_id": "550e8400-e29b-41d4-a716-446655440000",
+    "role": "assistant",
+    "content": "To deploy the application...",
+    "created_at": "2025-01-15T10:30:05Z"
+  }
+]
+```
+
+### Delete Session
+
+**Endpoint**: `DELETE /chat/sessions/{session_id}`
+
+**Response**: `204 No Content`
 
 ---
 

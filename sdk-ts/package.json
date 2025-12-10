@@ -2,7 +2,16 @@
   "name": "@mnemosyne/sdk",
   "version": "0.1.0",
   "description": "TypeScript SDK for Mnemosyne RAG API - modern, type-safe, fully async",
-  "keywords": ["rag", "retrieval", "embeddings", "search", "ai", "ml", "llm", "typescript"],
+  "keywords": [
+    "rag",
+    "retrieval",
+    "embeddings",
+    "search",
+    "ai",
+    "ml",
+    "llm",
+    "typescript"
+  ],
   "homepage": "https://github.com/raghavpatnecha/Mnemosyne/tree/main/sdk-ts",
   "repository": {
     "type": "git",
@@ -23,7 +32,11 @@
     },
     "./package.json": "./package.json"
   },
-  "files": ["dist", "README.md", "LICENSE"],
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "build": "tsup",
     "build:watch": "tsup --watch",
@@ -41,7 +54,9 @@
     "version": "changeset version",
     "release": "npm run build && changeset publish"
   },
-  "dependencies": {},
+  "dependencies": {
+    "@rollup/rollup-win32-x64-msvc": "^4.53.3"
+  },
   "devDependencies": {
     "@changesets/cli": "^2.27.0",
     "@types/node": "^20.10.0",

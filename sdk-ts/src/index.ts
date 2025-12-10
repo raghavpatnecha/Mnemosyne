@@ -22,6 +22,10 @@ export {
   APIError,
 } from './exceptions.js';
 
+// Streaming utilities and types
+export { parseSSEStream } from './streaming.js';
+export type { SSEEvent, SSEEventType } from './streaming.js';
+
 // All type definitions
 export type {
   // Common
@@ -49,8 +53,18 @@ export type {
   ChunkResult,
   RetrievalResponse,
   // Chat
+  ChatPreset,
+  ReasoningMode,
   ChatRequest,
+  MediaItem,
+  FollowUpQuestion,
   Source,
+  SourceReference,
+  UsageStats,
+  ChatMetadata,
+  ChatCompletionResponse,
+  StreamChunkType,
+  StreamChunk,
   ChatResponse,
   ChatSessionResponse,
   ChatMessageResponse,
